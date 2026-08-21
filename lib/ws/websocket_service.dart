@@ -24,10 +24,7 @@ class WebSocketService {
     // 绑定发送 ping 的实现
     // ping 发送失败 触发监听事件 ErrorEvent 断开连接
     _heartBeat.sendPingCallback = () async {
-      final pingDto = MessageDto(
-        msgType: MessageType.heartBeat,
-        data: {},
-      );
+      final pingDto = MessageDto(msgType: MessageType.heartBeat, data: {});
       return sendDto(pingDto);
     };
 
@@ -166,7 +163,9 @@ class WebSocketService {
           // 将消息推送给全局分发器
           unawaited(MessageDispatcher.instance.dispatch(event.dto));
         } else if (event is ErrorEvent) {
-          debugPrint("websocket 异常：${event.error}");
+          debugPrint(
+            "websocket 异常：${event.error} \n 剩余重连次数：$_availableReconnectCount \n 重连耗尽与否状态：${autoReconnectExhausted.value} \n 用户是否正在手动重连状态：${isManuallyReconnecting.value}",
+          );
         }
       });
     }
@@ -205,6 +204,7 @@ class WebSocketService {
     if (_availableReconnectCount <= 0) {
       _allowReconnect = false; // 耗尽次数 关闭自动重连
       autoReconnectExhausted.value = true; // 通知 UI 渲染手动重连入口
+      isManuallyReconnecting.value = false; // 关闭手动重连
       return;
     }
     debugPrint("计划${_reconnectDelay.inSeconds}秒后尝试重连");
@@ -234,6 +234,7 @@ class WebSocketService {
     if (isManuallyReconnecting.value) return;
     isManuallyReconnecting.value = true;
     _availableReconnectCount = 5;
+    autoReconnectExhausted.value = false;
     _reconnectDelay = const Duration(seconds: 2);
     await connect(token);
   }

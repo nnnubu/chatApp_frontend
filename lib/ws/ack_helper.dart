@@ -105,9 +105,17 @@ class AckHelper {
       return;
     }
 
+    Map<String, dynamic>? data = dto.data;
+    // 后端未传输数据 或 未成功
+    if (data == null) return;
+    if (!data["success"]) {
+      debugPrint(data["errMsg"]);
+      return;
+    }
+
     final AckListener listener = _pending.remove(requestId)!;
     listener.ackTimer.cancel();
-    
+
     // 若后端传输回 msgId 则为消息添加 msgId 原本拥有和原本为空不影响
     listener.dto.msgId = dto.msgId;
     _ackRespStreamController.add(
@@ -117,11 +125,12 @@ class AckHelper {
         dto: listener.dto,
       ),
     );
+    return;
   }
 
   // 等待超时则删除定时器，更新状态为 failed 并通知失败
   void onTimeOut(String requestId) {
-    debugPrint("消息：$requestId 接收超时");
+    debugPrint("消息：$requestId 接收超时或失败");
 
     final AckListener listener = _pending[requestId]!;
     listener.ackTimer.cancel();

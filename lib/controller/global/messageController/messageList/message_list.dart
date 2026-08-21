@@ -44,6 +44,9 @@ class MessageList {
       );
       // 只更新最新消息
       if (existIndex != -1) {
+        // 未读数量增加
+        newItem.unReadCount.value +=
+            (_messageList[existIndex] as ChatItem).unReadCount.value;
         _messageList[existIndex] = newItem;
         return false;
       }
@@ -60,6 +63,15 @@ class MessageList {
     // 保存旧数据 并从列表中删除元素 否则会出现动画执行完毕，下一条消息变成上一条消息的情况
     BaseInfoItem removeItem = _messageList.removeAt(existIndex);
     return (existIndex: existIndex, removeItem: removeItem);
+  }
+
+  Future<void> clearUnReadCount(String conversationUid) async {
+    final existIndex = _messageList.indexWhere(
+      (item) => item is ChatItem && item.conversationUid == conversationUid,
+    );
+    if (existIndex != -1) {
+      (_messageList[existIndex] as ChatItem).unReadCount.value = 0;
+    }
   }
 
   void clear() {

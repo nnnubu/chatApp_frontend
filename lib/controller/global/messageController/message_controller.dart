@@ -15,7 +15,7 @@ import 'package:get/get.dart';
 class MessageController extends GetxController {
   late final StreamSubscription<MessageBusEvent> _messageSub;
 
-  late final MessageList _messageList;
+  late final MessageList messageList;
   late final CategoryList _categoryList;
   late final ChatList chatList;
 
@@ -34,12 +34,19 @@ class MessageController extends GetxController {
         } else if (event.item is ChatItem) {
           // 聊天消息渲染消息列表处的卡片的同时 也要渲染到聊天列表
           ChatItem item = event.item as ChatItem;
-          if (item.isInsertToTop || chatList.getConversationState(item.conversationUid!).messageList.isEmpty) {
+          if (item.isInsertToTop ||
+              chatList
+                  .getConversationState(item.conversationUid!)
+                  .messageList
+                  .isEmpty) {
             addChatItem(item, 0);
           } else {
             addChatItem(
               item,
-              chatList.getConversationState(item.conversationUid!).messageList.length,
+              chatList
+                  .getConversationState(item.conversationUid!)
+                  .messageList
+                  .length,
             );
           }
         }
@@ -120,7 +127,7 @@ class MessageController extends GetxController {
       }
     });
     _categoryList = CategoryList();
-    _messageList = MessageList();
+    messageList = MessageList();
     chatList = ChatList();
     initMessagePage();
   }
@@ -128,10 +135,11 @@ class MessageController extends GetxController {
   bool _isLoadingOfflineMessage = false;
   bool _isLoadingCategory = false;
   bool _isLoadingFriends = false;
+  bool _isLoadingUnReadMessage = false;
 
   // 根据列表类型建立数据源映射
   Map<ListType, RxList<dynamic>> get dataSource => {
-    ListType.messageList: _messageList.dataSource,
+    ListType.messageList: messageList.dataSource,
     ListType.categoryItemList: _categoryList.dataSource,
   };
 
@@ -142,7 +150,7 @@ class MessageController extends GetxController {
 
   // 添加消息
   void addMessageListItem(BaseInfoItem newItem) {
-    final bool isInsert = _messageList.addItem(newItem);
+    final bool isInsert = messageList.addItem(newItem);
     if (!isInsert) return;
     _operateStream.add(
       MessageListOperate(type: ListOperateType.insert, index: 0, item: newItem),
@@ -151,7 +159,7 @@ class MessageController extends GetxController {
 
   // 删除消息
   void deleteMessageListItem(String targetUid) {
-    final (:existIndex, :removeItem) = _messageList.deleteItem(targetUid);
+    final (:existIndex, :removeItem) = messageList.deleteItem(targetUid);
     if (existIndex == null || removeItem == null) return;
     // 将旧数据传输给删除事件，等待页面使用旧数据执行删除动画
     _operateStream.add(
@@ -221,6 +229,21 @@ class MessageController extends GetxController {
     // 但是当前分类还没拉取 就会出现错误
     await pullCategory();
     await pullOfflineApply();
+    await pullUnReadMessage();
+  }
+
+  Future<void> pullUnReadMessage() async {
+    if (_isLoadingUnReadMessage) return;
+    _isLoadingUnReadMessage = true;
+    final CommonState commonState = await UserService.pullUnReadMessage();
+    if (commonState.isSuccess && commonState.data != null) {
+      List? messages = commonState.data["messages"];
+      if (messages != null) {
+        for (int i = 0; i < messages.length; i++) {
+          MessageDispatcher.instance.dispatch(MessageDto.formJson(messages[i]));
+        }
+      }
+    }
   }
 
   // 拉取离线好友请求
@@ -282,7 +305,7 @@ class MessageController extends GetxController {
   // 退出登录执行
   Future<void> clearInfo() async {
     chatList.clear();
-    _messageList.clear();
+    messageList.clear();
     _categoryList.clear();
   }
 

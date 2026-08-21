@@ -151,13 +151,13 @@ class UserApi {
     return res.data as Map<String, dynamic>?;
   }
 
-  static Future<Map<String, dynamic>?> pullMessage(
+  static Future<Map<String, dynamic>?> pullHistoryMessage(
     int pageSize,
     String? cursorMsgId,
     String conversationUid,
   ) async {
     Response res = await DioUtil.dio.get(
-      "auth/pullMessages",
+      "auth/pullHistoryMessage",
       queryParameters: cursorMsgId == null
           ? {"pageSize": pageSize, "conversationUid": conversationUid}
           : {
@@ -167,5 +167,19 @@ class UserApi {
             },
     );
     return res.data as Map<String, dynamic>?;
+  }
+
+  static Future<Map<String, dynamic>?> pullUnReadMessage() async {
+    Response res = await DioUtil.dio.get(
+      "auth/pullUnReadMessage",
+    );
+    return res.data as Map<String, dynamic>?;
+  }
+
+  static Future<Map<String, dynamic>?> markReadStatus(
+    String conversationUid,
+  ) async {
+    Response res = await DioUtil.dio.post("auth/markReadStatus",data: {"conversationUid" : conversationUid});
+    return res.data as Map<String,dynamic>?;
   }
 }

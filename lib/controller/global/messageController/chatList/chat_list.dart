@@ -25,7 +25,6 @@ class ChatList {
   // 以 conversationUid 为 key , 其中的 value 为该会话下的专用列表
   final RxMap<String, ConversationState> _chatMap = RxMap({});
   final UserController userController = Get.find<UserController>();
-
   ConversationState getConversationState(String conversationUid) {
     if (!_chatMap.containsKey(conversationUid)) {
       // _chatMap[conversationUid] = <ChatItem>[].obs;
@@ -52,10 +51,17 @@ class ChatList {
       senderUid: newItem.senderUid,
       msgId: newItem.msgId,
     );
-    if (newItem.senderUid == userController.uid) {
-      copyItem.uid = userController.uid;
-      copyItem.nickname = userController.nickname;
-      copyItem.avatarUrl = userController.avatar.url;
+    // 实时发送消息时，后端推送发送者的基础消息 若发送者为自己 则修改渲染信息为自己的信息 若是让后端按发送者来返回信息的话 这个 MessageList 的消息卡片渲染就会出错 发一条消息同一个会话id就会显示自己的头像而不是接收者的头像 虽说可以靠判断来进行修改 但是对于初次渲染消息卡片时同样会出现这个问题 后续再想办法重构吧
+    // if (newItem.senderUid == userController.uid) {
+    //   copyItem.uid = userController.uid;
+    //   copyItem.nickname = userController.nickname;
+    //   copyItem.avatarUrl = userController.avatar.url;
+    // }
+
+    // 后端已经统一在发送消息时推送发送者的基础信息 消息列表的渲染问题后续再解决 此处问题已解决 在 message 界面进行了判断处理
+    if (!_chatMap.containsKey(copyItem.conversationUid)) {
+      // _chatMap[conversationUid] = <ChatItem>[].obs;
+      _chatMap[copyItem.conversationUid!] = ConversationState();
     }
     RxList<ChatItem> list = _chatMap[copyItem.conversationUid]!.messageList;
 

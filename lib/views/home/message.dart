@@ -13,6 +13,7 @@ import 'package:chatapp/utils/show_tip.dart';
 import 'package:chatapp/widgets/common_animated_list.dart';
 import 'package:chatapp/widgets/message/card/chat_card.dart';
 import 'package:chatapp/widgets/message/card/friend_apply_card.dart';
+import 'package:chatapp/widgets/message/item_info/base_info.dart';
 import 'package:chatapp/widgets/message/item_info/category_list/category_item_info.dart';
 import 'package:chatapp/widgets/message/item_info/chat_list/chat_item.dart';
 import 'package:chatapp/widgets/message/item_info/message_list/friend_apply_item.dart';
@@ -113,7 +114,7 @@ class _MessageView extends State<MessageView>
             AnimatedContainer(
               color: t.backGroundColor,
               duration: const Duration(milliseconds: 800),
-              height: exhausted ? 90 : 0,
+              height: manualReconnecting || exhausted ? 90 : 0,
               padding: EdgeInsets.fromLTRB(0, safeTopPadding, 0, 0),
               child: Container(
                 color: Colors.red,
@@ -167,7 +168,7 @@ class _MessageView extends State<MessageView>
               color: t.secondColor,
               padding: EdgeInsets.fromLTRB(
                 3,
-                exhausted ? 0 : safeTopPadding,
+                manualReconnecting || exhausted ? 0 : safeTopPadding,
                 0,
                 0,
               ),
@@ -445,12 +446,34 @@ class _MessageView extends State<MessageView>
                       child: FadeTransition(
                         opacity: animation,
                         child: switch (item) {
-                          ChatItem chatItem => ChatCard(
-                            // key: ValueKey(item.uid),
-                            // 可以使用 key 让其不复用索引缓存 只要卡片内部数据出现 任何变化 都会销毁重建
-                            // 此处就不复用了，否则在删除卡片的时候会让我原本封装的滑动动画位置不被使用，进而出现滑动出来点击删除按钮的时候不是动画滑动回原点，而是直接闪现到原点
-                            item: chatItem,
-                            onDelete: () => _deleteItem(item.uid),
+                          ChatItem chatItem => Builder(
+                            builder: (context) {
+                              // 由于后端统一发送发送者的基础信息 因此对于自己这边发送消息时 优先在分类区域寻找指定的聊天对象 获取其基础 信息并覆盖 注意不要使用原有的 chatItem ，而是拷贝一个，否则会修改到聊天界面的chatItem信息 毕竟两者是同一个实例引用
+                              BaseInfoItem? receiverInfo;
+                              ChatItem copyItem = chatItem;
+                              if (categoryInfoList.isNotEmpty) {
+                                for (final dynamic raw in categoryInfoList) {
+                                  if (raw is CategoryInfo) {
+                                    receiverInfo = raw.itemList.firstWhereOrNull((e) => e.uid == item.receiverUid);
+                                    if (receiverInfo != null) {
+                                      break;
+                                    }
+                                  }
+                                }
+                                if (receiverInfo != null) {
+                                  copyItem.uid = receiverInfo.uid;
+                                  copyItem.nickname = receiverInfo.nickname;
+                                  copyItem.avatarUrl = receiverInfo.avatarUrl;
+                                }
+                              }
+                              return ChatCard(
+                                // key: ValueKey(item.uid),
+                                // 可以使用 key 让其不复用索引缓存 只要卡片内部数据出现 任何变化 都会销毁重建
+                                // 此处就不复用了，否则在删除卡片的时候会让我原本封装的滑动动画位置不被使用，进而出现滑动出来点击删除按钮的时候不是动画滑动回原点，而是直接闪现到原点
+                                item: copyItem,
+                                onDelete: () => _deleteItem(item.uid),
+                              );
+                            },
                           ),
                           FriendApplyMessageItem friendApplyItem =>
                             FriendApplyCard(

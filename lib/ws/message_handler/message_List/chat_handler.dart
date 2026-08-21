@@ -15,6 +15,7 @@ class ChatHandler extends BaseMessageHanlder {
       msgId: msgId,
       uid: data["uid"],
       senderUid: data["senderUid"],
+      receiverUid: data["receiverUid"],
       nickname: data["nickname"],
       avatarUrl: data["avatarUrl"],
       conversationUid: data["conversationUid"],

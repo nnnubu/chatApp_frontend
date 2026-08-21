@@ -251,18 +251,44 @@ class UserService {
     }
   }
 
-  static Future<CommonState> pullMessage(
+  static Future<CommonState> pullHistoryMessage(
     int pageSize,
     String? cursorMsgId,
     String conversationUid,
   ) async {
     try {
-      final Map<String, dynamic>? data = await UserApi.pullMessage(
+      final Map<String, dynamic>? data = await UserApi.pullHistoryMessage(
         pageSize,
         cursorMsgId,
         conversationUid,
       );
       return CommonState(isSuccess: true, msg: "", data: data);
+    } catch (e) {
+      String errMsg = ErrorMsgConstant.networkDefaultErr;
+      if (e is DioException) {
+        errMsg = e.message ?? ErrorMsgConstant.networkDefaultErr;
+      }
+      return CommonState(isSuccess: false, msg: errMsg);
+    }
+  }
+
+  static Future<CommonState> pullUnReadMessage() async {
+    try {
+      final Map<String, dynamic>? data = await UserApi.pullUnReadMessage();
+      return CommonState(isSuccess: true, msg: "", data: data);
+    } catch (e) {
+      String errMsg = ErrorMsgConstant.networkDefaultErr;
+      if (e is DioException) {
+        errMsg = e.message ?? ErrorMsgConstant.networkDefaultErr;
+      }
+      return CommonState(isSuccess: false, msg: errMsg);
+    }
+  }
+
+  static Future<CommonState> markReadStatus(String conversationUid,) async {
+    try {
+      await UserApi.markReadStatus(conversationUid);
+      return CommonState(isSuccess: true, msg: "");
     } catch (e) {
       String errMsg = ErrorMsgConstant.networkDefaultErr;
       if (e is DioException) {

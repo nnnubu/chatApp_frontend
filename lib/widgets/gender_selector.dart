@@ -204,6 +204,8 @@ class _GenderSelectorState extends State<GenderSelector>
                                     child: Column(
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
                                       children: [
                                         _iconMap[index]!,
                                         const SizedBox(height: 8),
@@ -250,8 +252,8 @@ class _GenderSelectorState extends State<GenderSelector>
                   ),
 
                   Positioned(
-                    right: - AppBase.popBoxHorizontalPadding / 2,
-                    top: - AppBase.popBoxVerticalPadding / 2,
+                    right: -AppBase.popBoxHorizontalPadding / 2,
+                    top: -AppBase.popBoxVerticalPadding / 2,
                     child: IconButton(
                       onPressed: () {
                         widget.onVisible(false);

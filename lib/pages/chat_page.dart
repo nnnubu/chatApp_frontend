@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:chatapp/constants/app_constants.dart';
 import 'package:chatapp/controller/global/messageController/chatList/chat_list.dart';
 import 'package:chatapp/controller/global/theme_controller.dart';
@@ -9,7 +11,6 @@ import 'package:chatapp/service/user_service.dart';
 import 'package:chatapp/utils/request_id_generator.dart';
 import 'package:chatapp/widgets/chat_item_card.dart';
 import 'package:chatapp/widgets/common_animated_list.dart';
-import 'package:chatapp/widgets/message/card/chat_card.dart';
 import 'package:chatapp/widgets/message/item_info/base_info.dart';
 import 'package:chatapp/widgets/message/item_info/chat_list/chat_item.dart';
 import 'package:chatapp/ws/message_dispatcher.dart';
@@ -25,15 +26,29 @@ class ChatPage extends StatefulWidget {
   }
 }
 
-class _ChatPageState extends State<ChatPage> {
+class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   late BaseInfoItem? _info;
+  late ChatItem _chatItem; // 最新消息的快照 用于简便获取会话的基础信息
   late MessageController _messageController;
   late ConversationState _conversationState;
+  late ThemeController themeController;
+  late UserController userController;
   final TextEditingController _textEditingController = TextEditingController();
+  late RxList<ChatItem> dataSource;
   bool _isArgumentLegal = false;
   bool _isLoadingHistory = false;
   bool _shouldScrollToBottom = false;
   RxDouble loadHistoryBox = 0.0.obs;
+
+  Future<void> _clearUnRead() async {
+    UserService.markReadStatus(_chatItem.conversationUid!);
+    // 使用 WidgetsBinding.instance.addPostFrameCallback 将操作注册到全局调度器 SchedulerBinding 脱离当前 State 组件树 这样就不会触发 在渲染期间触发重新渲染标记 导致 flutter 报错
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _messageController.messageList.clearUnReadCount(
+        _chatItem.conversationUid!,
+      );
+    });
+  }
 
   Future<void> _loadHistory({
     String? cursorMsgId,
@@ -42,16 +57,18 @@ class _ChatPageState extends State<ChatPage> {
   }) async {
     if (_isLoadingHistory || !_conversationState.hasMore) return;
     _isLoadingHistory = true;
-    CommonState commonState = await UserService.pullMessage(
+    CommonState commonState = await UserService.pullHistoryMessage(
       pageSize,
       cursorMsgId,
       conversationUid,
     );
     if (commonState.isSuccess && commonState.data != null) {
       _conversationState.hasMore = commonState.data["hasMore"];
-      List messages = commonState.data["messages"];
-      for (int i = 0; i < messages.length; i++) {
-        MessageDispatcher.instance.dispatch(MessageDto.formJson(messages[i]));
+      List? messages = commonState.data["messages"];
+      if (messages != null) {
+        for (int i = 0; i < messages.length; i++) {
+          MessageDispatcher.instance.dispatch(MessageDto.formJson(messages[i]));
+        }
       }
     }
     _isLoadingHistory = false;
@@ -60,18 +77,49 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _messageController = Get.find<MessageController>();
+    themeController = Get.find<ThemeController>();
+    userController = Get.find<UserController>();
     _info = Get.arguments;
     if (_info != null &&
         _info is ChatItem &&
         (_info as ChatItem).conversationUid != "") {
       _isArgumentLegal = true;
+      _chatItem = _info as ChatItem;
       _conversationState = _messageController.chatList.getConversationState(
         (_info as ChatItem).conversationUid!,
       );
-      _loadHistory(conversationUid: (_info as ChatItem).conversationUid!);
+      dataSource = _conversationState.messageList;
+      if (dataSource.length < 10) {
+        // 内容高度不够会导致后面的滑动无法被监听到 因此当缓存的消息过少时 进入聊天界面就加载最近的 10 条历史消息
+        _loadHistory(conversationUid: (_info as ChatItem).conversationUid!);
+      } else {
+        debugPrint("hasMore=${_conversationState.hasMore}");
+        debugPrint("isLoadingHistory=$_isLoadingHistory");
+      }
     } else {
       _isArgumentLegal = false;
+    }
+    _shouldScrollToBottom = true;
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    // 因为初始化时已经保证消息不可能未空了 所以直接使用!
+    _clearUnRead();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // APP回到前台
+      _clearUnRead();
+    } else if (state == AppLifecycleState.paused) {
+      // APP退后台
+      _clearUnRead();
     }
   }
 
@@ -81,14 +129,9 @@ class _ChatPageState extends State<ChatPage> {
       return Scaffold(body: Center(child: Text("页面参数异常")));
     }
 
-    // 由于 _info == null 的情况已被上面拦截因此后续所有引用都添加 !
-    ChatItem info = _info as ChatItem;
     double screenWidth = MediaQuery.of(context).size.width;
     double safeTopPadding = DeviceSize.instance.statusBarHeight;
-    final themeController = Get.find<ThemeController>();
-    final userController = Get.find<UserController>();
     final AppTheme t = themeController.currentTheme;
-    final RxList<ChatItem> dataSource = _conversationState.messageList;
     return Scaffold(
       body: MediaQuery.removePadding(
         context: context,
@@ -112,7 +155,7 @@ class _ChatPageState extends State<ChatPage> {
                       icon: Icon(Icons.arrow_back),
                     ),
 
-                    Text(info.nickname),
+                    Text(_chatItem.nickname),
                     IconButton(onPressed: () {}, icon: Icon(Icons.menu)),
                   ],
                 ),
@@ -162,8 +205,8 @@ class _ChatPageState extends State<ChatPage> {
                             !_isLoadingHistory &&
                             _conversationState.hasMore) {
                           _loadHistory(
-                            cursorMsgId: dataSource[0].msgId!,
-                            conversationUid: info.conversationUid!,
+                            cursorMsgId: dataSource[0].msgId,
+                            conversationUid: _chatItem.conversationUid!,
                           );
                         }
                         loadHistoryBox.value = 0;
@@ -229,10 +272,6 @@ class _ChatPageState extends State<ChatPage> {
                         child: FadeTransition(
                           opacity: animation,
                           child: switch (item) {
-                            ChatItem chatItem => ChatCard(
-                              item: chatItem,
-                              onDelete: () {},
-                            ),
                             _ => const SizedBox.shrink(),
                           },
                         ),
@@ -297,8 +336,8 @@ class _ChatPageState extends State<ChatPage> {
                                 msgType: MessageType.chat,
                                 requestId: RequestIdGenerator.generate(),
                                 data: {
-                                  "conversationUid": info.conversationUid,
-                                  "receiverUid": info.uid,
+                                  "conversationUid": _chatItem.conversationUid,
+                                  "receiverUid": _chatItem.uid,
                                   "content": _textEditingController.text,
                                 },
                               ),
