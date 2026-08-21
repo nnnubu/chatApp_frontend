@@ -1,9 +1,6 @@
-import 'dart:collection';
-
 import 'package:chatapp/controller/global/messageController/base.dart';
 import 'package:chatapp/widgets/message/item_info/base_info.dart';
 import 'package:chatapp/widgets/message/item_info/category_list/category_item_info.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get_rx/src/rx_types/rx_types.dart';
 
 class CategoryListOperate extends ListEvent {
@@ -41,7 +38,7 @@ class CategoryList {
       categoryInfo.itemList.add(newItem);
       return true;
     } catch (e) {
-      debugPrint("发送了一个错误：$e 正在加入等待队列");
+      // debugPrint("发送了一个错误：$e 正在加入等待队列");
       // 存入 当前分类的 映射表 若当前 key 已存在则返回对应的 value
       // final queue = _pendingMap.putIfAbsent(name, () => Queue());
       // queue.add((name: name, newItem: newItem));
@@ -81,7 +78,6 @@ class CategoryList {
     if (existIndex != -1) {
       return false;
     }
-
     _categoryList.add(info);
 
     // // 查询当前分类是否有滞留的元素未进入队列

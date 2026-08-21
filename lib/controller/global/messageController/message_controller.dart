@@ -10,7 +10,6 @@ import 'package:chatapp/widgets/message/item_info/chat_list/chat_item.dart';
 import 'package:chatapp/widgets/message/item_info/message_list/friend_apply_item.dart';
 import 'package:chatapp/dto/dto_message.dart';
 import 'package:chatapp/ws/message_dispatcher.dart';
-import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 
 class MessageController extends GetxController {
@@ -225,7 +224,6 @@ class MessageController extends GetxController {
 
   // 初始化消息 及初始化拉取离线内容
   Future<void> initMessagePage() async {
-    debugPrint("初始化消息页面中");
     // 注意优先级顺序 若是先拉取离线好友请求
     // 当好友同意时会自动加到好友分类列表
     // 但是当前分类还没拉取 就会出现错误
@@ -294,14 +292,13 @@ class MessageController extends GetxController {
       page,
       pageSize,
     );
-
+    _isLoadingFriends = false;
     if (commonState.isSuccess && commonState.data != null) {
       bool? hasMore = commonState.data["hasMore"];
       int returnPage = commonState.data["page"] ?? page;
       List? friends = commonState.data["friends"];
       return (hasMore: hasMore, page: returnPage + 1, friends: friends);
     }
-    _isLoadingFriends = false;
 
     return (hasMore: null, page: page, friends: null);
   }
