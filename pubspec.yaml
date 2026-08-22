@@ -34,7 +34,7 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
 
-  flutter_launcher_icons: ^0.13.1 # 一键生成应用桌面图标
+  # flutter_launcher_icons: ^0.13.1 # 一键生成应用桌面图标
   dio: ^5.4.0 #网络请求库
   shared_preferences: ^2.5.5  #轻量本地持久化存储
   get: ^4.6.6 # GetX 框架 路由跳转、状态管理、全局痰喘、国际化、上下文简化等

@@ -94,9 +94,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       if (dataSource.length < 10) {
         // 内容高度不够会导致后面的滑动无法被监听到 因此当缓存的消息过少时 进入聊天界面就加载最近的 10 条历史消息
         _loadHistory(conversationUid: (_info as ChatItem).conversationUid!);
-      } else {
-        debugPrint("hasMore=${_conversationState.hasMore}");
-        debugPrint("isLoadingHistory=$_isLoadingHistory");
       }
     } else {
       _isArgumentLegal = false;
