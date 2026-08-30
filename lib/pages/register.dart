@@ -1,8 +1,9 @@
 import 'dart:async';
+
 import 'package:chatapp/constants/app_constants.dart';
 import 'package:chatapp/controller/global/theme_controller.dart';
 import 'package:chatapp/service/user_service.dart';
-import 'package:chatapp/utils/check_Input.dart';
+import 'package:chatapp/utils/check_input.dart';
 import 'package:chatapp/utils/show_tip.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -11,80 +12,51 @@ class Register extends StatefulWidget {
   const Register({super.key});
 
   @override
-  State<Register> createState() {
+  State<StatefulWidget> createState() {
     return _RegisterState();
   }
 }
 
-class _RegisterState extends State<Register> {
+class _RegisterState extends State<Register> with SingleTickerProviderStateMixin {
   final TextEditingController _nameCtrl = TextEditingController();
   final TextEditingController _pwdCtrl = TextEditingController();
   final TextEditingController _confirmPwdCtrl = TextEditingController();
   final TextEditingController _emailCtrl = TextEditingController();
   final TextEditingController _codeCtrl = TextEditingController();
 
-  final RxInt _state = 0.obs;
-  final RxInt _countDown = 60.obs;
-  final RxBool _isSubmitting = false.obs;
   final RxnString _nicknameError = RxnString();
   final RxnString _pwdError = RxnString();
   final RxnString _confirmPwdError = RxnString();
   final RxnString _emailError = RxnString();
   final RxnString _codeError = RxnString();
-  Timer? _countTimer;
 
-  late final ThemeController _themeController;
+  // 0: 邮箱未验证 1: 可发送验证码 2: 倒计时中
+  final RxInt _state = 0.obs;
+  final RxBool _isSubmitting = false.obs;
+  final RxInt _countDown = 60.obs;
+  final RxBool _obscurePwd = true.obs;
+  final RxBool _obscureConfirmPwd = true.obs;
+
+  Timer? _countTimer;
+  late ThemeController _themeController;
+  late final AnimationController _animController;
+  late final Animation<double> _fadeAnim;
+  late final Animation<Offset> _slideAnim;
 
   Future<void> submitForm() async {
-    if (_isSubmitting.value) return;
-
     _isSubmitting.value = true;
-
-    String nickname = _nameCtrl.text.trim();
-    String password = _pwdCtrl.text.trim();
-    String confirmPwd = _confirmPwdCtrl.text.trim();
-    String email = _emailCtrl.text.trim();
-    String code = _codeCtrl.text.trim();
-
-    if (nickname.isEmpty ||
-        password.isEmpty ||
-        confirmPwd.isEmpty ||
-        email.isEmpty ||
-        code.isEmpty) {
-      showTipSnackbar(msg: "请先输入表单信息", isSuccess: false);
-
-      _isSubmitting.value = false;
-      return;
-    }
-
-    final CommonState commonState = await UserService.register(
-      nickname,
-      password,
-      email,
-      code,
+    CommonState commonState = await UserService.register(
+      _nameCtrl.text.trim(),
+      _pwdCtrl.text,
+      _emailCtrl.text.trim(),
+      _codeCtrl.text.trim(),
     );
+    if (!mounted) return;
+    _isSubmitting.value = false;
 
-    if (mounted) {
-      _isSubmitting.value = false;
-    }
-
-    if (commonState.isSuccess && mounted) {
-      // Navigator.pop(context);
-
+    if (commonState.isSuccess) {
+      // 注册成功，返回登录页
       Get.back();
-      // 注意这个要放在页面跳转后面，否则会导致下面的结果：
-      //showTipSnackbar(msg: msg, isSuccess: isSuccess); 立刻创建Snackbar浮层
-      //Get.back(); 执行Get.back，检测到Snackbar存在，只关闭弹窗，页面不退出
-
-      //  Get.back() 有一个隐藏参数 closeOverlays = false（默认关闭），底层执行逻辑是：
-      // 先检查当前是否存在Overlay 浮层（Snackbar、Dialog、BottomSheet 都属于 OverlayRoute）；
-      // 如果浮层存在，优先关闭浮层，直接 return，不会执行页面 pop；
-      // 只有所有浮层全部关闭后，才会弹出路由栈里的页面
-
-      // 另外很重要的是   () async {
-      //   if(mounted) Get.back();
-      // }();
-      // 对于这种异步匿名闭包写法，Dart 会把这个异步任务丢到事件队列，脱离生命周期，mounted容易失效，导致 Get.back() 无法正常出栈，多次操作后路由栈可能无限堆积
     }
     showTipSnackbar(msg: commonState.msg, isSuccess: commonState.isSuccess);
   }
@@ -95,7 +67,6 @@ class _RegisterState extends State<Register> {
     String? emailErr = CheckInput.email(email);
     if (emailErr != null) {
       _emailError.value = emailErr;
-
       return;
     }
 
@@ -107,7 +78,6 @@ class _RegisterState extends State<Register> {
 
       _countTimer?.cancel();
       _countTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        // 页面关闭时需要手动停止 因为 Timer 是全局事件 而页面只属于 组件 事件不会因为组件被销毁而停止
         if (!mounted) {
           timer.cancel();
           return;
@@ -134,6 +104,22 @@ class _RegisterState extends State<Register> {
   void initState() {
     super.initState();
     _themeController = Get.find<ThemeController>();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _fadeAnim = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOut,
+    );
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOutCubic,
+    ));
+    _animController.forward();
   }
 
   @override
@@ -144,206 +130,307 @@ class _RegisterState extends State<Register> {
     _emailCtrl.dispose();
     _codeCtrl.dispose();
     _countTimer?.cancel();
+    _animController.dispose();
     super.dispose();
+  }
+
+  Widget _buildInputField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    required RxnString error,
+    required Function(String) onChanged,
+    bool obscureText = false,
+    RxBool? obscureController,
+    VoidCallback? onToggleObscure,
+    TextInputType keyboardType = TextInputType.text,
+    Widget? suffix,
+  }) {
+    return Obx(() {
+      final AppTheme t = _themeController.currentTheme;
+      return Container(
+        decoration: BoxDecoration(
+          color: t.inputBgColor,
+          borderRadius: BorderRadius.circular(t.inputRadius),
+          border: Border.all(
+            color: error.value != null ? t.errorColor : t.dividerColor,
+            width: 1,
+          ),
+        ),
+        child: TextFormField(
+          controller: controller,
+          obscureText: obscureText && (obscureController?.value ?? true),
+          keyboardType: keyboardType,
+          style: t.bodyStyle,
+          decoration: InputDecoration(
+            labelText: label,
+            labelStyle: t.captionStyle,
+            hintText: hint,
+            hintStyle: t.captionStyle,
+            errorText: error.value,
+            errorStyle: TextStyle(color: t.errorColor, fontSize: 12),
+            prefixIcon: Icon(icon, color: t.hintTextColor, size: 20),
+            suffixIcon: obscureController != null
+                ? IconButton(
+                    icon: Icon(
+                      obscureController.value
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      color: t.hintTextColor,
+                      size: 18,
+                    ),
+                    onPressed: onToggleObscure,
+                  )
+                : suffix,
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          ),
+          onChanged: onChanged,
+        ),
+      );
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final AppTheme t = _themeController.currentTheme;
-    return Scaffold(
-      backgroundColor: t.backGroundColor,
-      appBar: AppBar(backgroundColor: const Color.fromARGB(0, 255, 255, 255)),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 80),
-          child: Obx(() {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  "注册",
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-                const SizedBox(height: 40),
-
-                TextFormField(
-                  controller: _nameCtrl,
-                  keyboardType: TextInputType.text,
-                  decoration: InputDecoration(
-                    labelText: "昵称",
-                    hintText: "请输入昵称",
-                    errorText: _nicknameError.value,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+    return Obx(() {
+      final AppTheme t = _themeController.currentTheme;
+      return Scaffold(
+        backgroundColor: t.scaffoldBg,
+        appBar: AppBar(
+          backgroundColor: t.appBarColor,
+          elevation: 0,
+          iconTheme: IconThemeData(color: t.fontColor),
+        ),
+        body: SafeArea(
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: SlideTransition(
+              position: _slideAnim,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      "创建账号",
+                      style: t.titleStyle.copyWith(fontSize: 28),
+                      textAlign: TextAlign.center,
                     ),
-                    prefixIcon: const Icon(Icons.person),
-                  ),
-                  onChanged: (value) {
-                    _nicknameError.value = CheckInput.nickname(value.trim());
-                  },
-                ),
-
-                const SizedBox(height: 12),
-
-                TextFormField(
-                  controller: _pwdCtrl,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: "密码",
-                    hintText: "请输入密码",
-                    errorText: _pwdError.value,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    const SizedBox(height: 8),
+                    Text(
+                      "加入我们，开始聊天",
+                      style: t.captionStyle.copyWith(fontSize: 14),
+                      textAlign: TextAlign.center,
                     ),
-                    prefixIcon: const Icon(Icons.key),
-                  ),
-                  onChanged: (value) {
-                    _pwdError.value = CheckInput.password(value);
-                  },
-                ),
+                    const SizedBox(height: 32),
 
-                const SizedBox(height: 12),
-
-                TextFormField(
-                  controller: _confirmPwdCtrl,
-                  decoration: InputDecoration(
-                    labelText: "确认密码",
-                    hintText: "确认密码",
-                    errorText: _confirmPwdError.value,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    // 昵称
+                    _buildInputField(
+                      controller: _nameCtrl,
+                      label: "昵称",
+                      hint: "请输入昵称",
+                      icon: Icons.person_outline,
+                      error: _nicknameError,
+                      onChanged: (value) =>
+                          _nicknameError.value = CheckInput.nickname(value.trim()),
                     ),
-                    prefixIcon: const Icon(Icons.confirmation_num),
-                  ),
-                  obscureText: true,
-                  onChanged: (value) {
-                    if (value != _pwdCtrl.text) {
-                      _confirmPwdError.value = "两次密码不一致";
-                    } else {
-                      _confirmPwdError.value = null;
-                    }
-                  },
-                ),
+                    const SizedBox(height: 14),
 
-                const SizedBox(height: 12),
-
-                TextFormField(
-                  controller: _emailCtrl,
-                  obscureText: false,
-                  decoration: InputDecoration(
-                    labelText: "邮箱",
-                    hintText: "请输入邮箱获取验证码",
-                    errorText: _emailError.value,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    // 密码
+                    _buildInputField(
+                      controller: _pwdCtrl,
+                      label: "密码",
+                      hint: "请输入密码",
+                      icon: Icons.lock_outline,
+                      error: _pwdError,
+                      obscureText: true,
+                      obscureController: _obscurePwd,
+                      onToggleObscure: () => _obscurePwd.value = !_obscurePwd.value,
+                      onChanged: (value) => _pwdError.value = CheckInput.password(value),
                     ),
-                    prefixIcon: const Icon(Icons.email),
-                    suffixIcon: _state.value == 2
-                        ? Padding(
-                            padding: const EdgeInsetsGeometry.all(12.0),
-                            child: Text(
-                              "$_countDown s",
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                fontSize: 14,
-                              ),
-                            ),
-                          )
-                        : IconButton(
-                            onPressed: _state.value == 1 ? submitEmail : null,
-                            icon: Icon(Icons.send),
-                            disabledColor: Colors.grey,
+                    const SizedBox(height: 14),
+
+                    // 确认密码
+                    _buildInputField(
+                      controller: _confirmPwdCtrl,
+                      label: "确认密码",
+                      hint: "再次输入密码",
+                      icon: Icons.lock_outline,
+                      error: _confirmPwdError,
+                      obscureText: true,
+                      obscureController: _obscureConfirmPwd,
+                      onToggleObscure: () =>
+                          _obscureConfirmPwd.value = !_obscureConfirmPwd.value,
+                      onChanged: (value) {
+                        if (value != _pwdCtrl.text) {
+                          _confirmPwdError.value = "两次密码不一致";
+                        } else {
+                          _confirmPwdError.value = null;
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 14),
+
+                    // 邮箱 + 验证码按钮
+                    Obx(() {
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: t.inputBgColor,
+                          borderRadius: BorderRadius.circular(t.inputRadius),
+                          border: Border.all(
+                            color: _emailError.value != null ? t.errorColor : t.dividerColor,
+                            width: 1,
                           ),
-                  ),
-                  onChanged: (value) {
-                    _emailError.value = CheckInput.email(value.trim());
-                    if (_state.value != 2) {
-                      if (_emailError.value == null) {
-                        _state.value = 1;
-                      } else {
-                        _state.value = 0;
-                      }
-                    }
-                  },
-                ),
+                        ),
+                        child: TextFormField(
+                          controller: _emailCtrl,
+                          keyboardType: TextInputType.emailAddress,
+                          style: t.bodyStyle,
+                          decoration: InputDecoration(
+                            labelText: "邮箱",
+                            labelStyle: t.captionStyle,
+                            hintText: "请输入邮箱获取验证码",
+                            hintStyle: t.captionStyle,
+                            errorText: _emailError.value,
+                            errorStyle: TextStyle(color: t.errorColor, fontSize: 12),
+                            prefixIcon: Icon(Icons.email_outlined, color: t.hintTextColor, size: 20),
+                            suffixIcon: _state.value == 2
+                                ? Padding(
+                                    padding: const EdgeInsets.all(14.0),
+                                    child: Text(
+                                      "${_countDown.value}s",
+                                      style: t.captionStyle,
+                                    ),
+                                  )
+                                : TextButton(
+                                    onPressed: _state.value == 1 ? submitEmail : null,
+                                    child: Text(
+                                      "获取验证码",
+                                      style: TextStyle(
+                                        color: _state.value == 1 ? t.primaryColor : t.hintTextColor,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          ),
+                          onChanged: (value) {
+                            _emailError.value = CheckInput.email(value.trim());
+                            if (_state.value != 2) {
+                              if (_emailError.value == null) {
+                                _state.value = 1;
+                              } else {
+                                _state.value = 0;
+                              }
+                            }
+                          },
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 14),
 
-                const SizedBox(height: 12),
-
-                TextFormField(
-                  controller: _codeCtrl,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: "验证码",
-                    hintText: "请输入验证码",
-                    errorText: _codeError.value,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    // 验证码
+                    _buildInputField(
+                      controller: _codeCtrl,
+                      label: "验证码",
+                      hint: "请输入验证码",
+                      icon: Icons.verified_outlined,
+                      error: _codeError,
+                      keyboardType: TextInputType.number,
+                      onChanged: (value) =>
+                          _codeError.value = CheckInput.code(value.trim()),
                     ),
-                    prefixIcon: const Icon(Icons.verified),
-                  ),
-                  onChanged: (value) {
-                    _codeError.value = CheckInput.code(value.trim());
-                  },
-                ),
+                    const SizedBox(height: 28),
 
-                const SizedBox(height: 12),
-
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    backgroundColor: t.secondColor,
-                  ),
-                  onPressed:
-                      _nicknameError.value == null &&
+                    // 注册按钮
+                    Obx(() {
+                      final canSubmit = _nicknameError.value == null &&
                           _pwdError.value == null &&
                           _confirmPwdError.value == null &&
                           _emailError.value == null &&
                           _codeError.value == null &&
-                          !_isSubmitting.value
-                      ? submitForm
-                      : () {
-                          showTipSnackbar(msg: "请先修正表单信息", isSuccess: false);
-                        },
-                  child: Builder(
-                    builder: (context) {
-                      if (_isSubmitting.value) {
-                        return CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        );
-                      }
-                      return const Text("注册", style: TextStyle(fontSize: 18));
-                    },
-                  ),
-                ),
+                          !_isSubmitting.value;
+                      return GestureDetector(
+                        onTap: canSubmit
+                            ? submitForm
+                            : () {
+                                showTipSnackbar(msg: "请先修正表单信息", isSuccess: false);
+                              },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          height: 52,
+                          decoration: BoxDecoration(
+                            gradient: canSubmit
+                                ? LinearGradient(
+                                    colors: [
+                                      t.primaryColor,
+                                      t.primaryColor.withOpacity(0.85),
+                                    ],
+                                  )
+                                : null,
+                            color: canSubmit ? null : t.hintTextColor.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(t.buttonRadius),
+                            boxShadow: canSubmit
+                                ? [
+                                    BoxShadow(
+                                      color: t.primaryColor.withOpacity(0.4),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Center(
+                            child: _isSubmitting.value
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2.5,
+                                    ),
+                                  )
+                                : Text(
+                                    "注册",
+                                    style: t.buttonStyle.copyWith(fontSize: 16),
+                                  ),
+                          ),
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 16),
 
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text("已有账号？"),
-                    TextButton(
-                      onPressed: () {
-                        // Navigator.pop(context);
-                        Get.back();
-                      },
-                      child: const Text("去登录"),
+                    // 去登录
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text("已有账号？", style: t.bodyStyle.copyWith(fontSize: 14)),
+                        TextButton(
+                          onPressed: () {
+                            Get.back();
+                          },
+                          child: Text(
+                            "去登录",
+                            style: t.bodyStyle.copyWith(
+                              color: t.primaryColor,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            );
-          }),
+              ),
+            ),
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 }

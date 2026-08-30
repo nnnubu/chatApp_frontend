@@ -1,6 +1,7 @@
 import 'package:chatapp/constants/app_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:get/get.dart';
 
 // 文件顶层全局常量
 const int minYear = 1900;
@@ -36,12 +37,11 @@ class BirthdaySelector extends StatefulWidget {
   State<BirthdaySelector> createState() => _BirthdaySelectorState();
 }
 
-class _BirthdaySelectorState extends State<BirthdaySelector>
-    with SingleTickerProviderStateMixin {
+class _BirthdaySelectorState extends State<BirthdaySelector> {
   late final int maxYear;
-  late int _selYear;
-  late int _selMonth;
-  late int _selDay;
+  final RxInt _selYear = 1900.obs;
+  final RxInt _selMonth = 1.obs;
+  final RxInt _selDay = 1.obs;
 
   late FixedExtentScrollController _yearCtrl;
   late FixedExtentScrollController _monthCtrl;
@@ -84,7 +84,7 @@ class _BirthdaySelectorState extends State<BirthdaySelector>
     _isWheelScrolling = true;
     final year = minYear + idx;
     _yTxtCtrl.text = year.toString();
-    setState(() => _selYear = year);
+    _selYear.value = year;
     _fixDayRange();
     Future.delayed(const Duration(milliseconds: 150), () {
       _isWheelScrolling = false;
@@ -95,7 +95,7 @@ class _BirthdaySelectorState extends State<BirthdaySelector>
     _isWheelScrolling = true;
     final month = idx + 1;
     _mTxtCtrl.text = month.toString();
-    setState(() => _selMonth = month);
+    _selMonth.value = month;
     _fixDayRange();
     Future.delayed(const Duration(milliseconds: 150), () {
       _isWheelScrolling = false;
@@ -105,16 +105,16 @@ class _BirthdaySelectorState extends State<BirthdaySelector>
   void _onDayChange(int idx) {
     _isWheelScrolling = true;
     _dTxtCtrl.text = (idx + 1).toString();
-    setState(() => _selDay = idx + 1);
+    _selDay.value = idx + 1;
     Future.delayed(const Duration(milliseconds: 150), () {
       _isWheelScrolling = false;
     });
   }
 
   void _fixDayRange() {
-    final max = _getMaxDay(_selYear, _selMonth);
-    if (_selDay > max) {
-      setState(() => _selDay = max);
+    final max = _getMaxDay(_selYear.value, _selMonth.value);
+    if (_selDay.value > max) {
+      _selDay.value = max;
       _dayCtrl.animateToItem(
         max - 1,
         duration: jumpAnimDuration,
@@ -124,7 +124,7 @@ class _BirthdaySelectorState extends State<BirthdaySelector>
   }
 
   void _handleConfirm() {
-    String birthResult = _formatDateToString(_selYear, _selMonth, _selDay);
+    String birthResult = _formatDateToString(_selYear.value, _selMonth.value, _selDay.value);
     widget.onConfirm(birthResult);
     widget.onVisible(false);
   }
@@ -139,17 +139,17 @@ class _BirthdaySelectorState extends State<BirthdaySelector>
       initDate = _parseDateStr(widget.initialBirthStr!);
     }
     initDate ??= DateTime(maxYear, 1, 1);
-    _selYear = initDate.year;
-    _selMonth = initDate.month;
-    _selDay = initDate.day;
+    _selYear.value = initDate.year;
+    _selMonth.value = initDate.month;
+    _selDay.value = initDate.day;
 
-    _yearCtrl = FixedExtentScrollController(initialItem: _selYear - minYear);
-    _monthCtrl = FixedExtentScrollController(initialItem: _selMonth - 1);
-    _dayCtrl = FixedExtentScrollController(initialItem: _selDay - 1);
+    _yearCtrl = FixedExtentScrollController(initialItem: _selYear.value - minYear);
+    _monthCtrl = FixedExtentScrollController(initialItem: _selMonth.value - 1);
+    _dayCtrl = FixedExtentScrollController(initialItem: _selDay.value - 1);
 
-    _yTxtCtrl = TextEditingController(text: _selYear.toString());
-    _mTxtCtrl = TextEditingController(text: _selMonth.toString());
-    _dTxtCtrl = TextEditingController(text: _selDay.toString());
+    _yTxtCtrl = TextEditingController(text: _selYear.value.toString());
+    _mTxtCtrl = TextEditingController(text: _selMonth.value.toString());
+    _dTxtCtrl = TextEditingController(text: _selDay.value.toString());
   }
 
   @override
@@ -166,227 +166,229 @@ class _BirthdaySelectorState extends State<BirthdaySelector>
   @override
   Widget build(BuildContext context) {
     final int yearItemCount = maxYear - minYear + 1;
-    final int currentMaxDay = _getMaxDay(_selYear, _selMonth);
     double screenWidth = MediaQuery.of(context).size.width;
-    return Positioned.fill(
-      child: Stack(
-        children: [
-          Positioned.fill(child: ColoredBox(color: Colors.black54)),
+    return Obx(() {
+      final currentMaxDay = _getMaxDay(_selYear.value, _selMonth.value);
+      return Positioned.fill(
+        child: Stack(
+          children: [
+            Positioned.fill(child: ColoredBox(color: Colors.black54)),
 
-          Center(
-            child: Container(
-              width: screenWidth * AppBase.popBoxWidthRatio,
-              padding: const EdgeInsets.symmetric(
-                vertical: AppBase.popBoxVerticalPadding,
-                horizontal: AppBase.popBoxHorizontalPadding,
-              ),
-              decoration: BoxDecoration(
-                color: widget.bgColor,
-                borderRadius: BorderRadius.circular(AppBase.popBoxRadius),
-              ),
-              child: Stack(
-                children: [
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox(height: gapSelectorBtn),
-                      Row(
-                        children: [
-                          // 年份滚轮
-                          Expanded(
-                            child: Column(
-                              children: [
-                                SizedBox(
-                                  height: selectorPanelHeight,
-                                  child: CupertinoPicker(
-                                    scrollController: _yearCtrl,
-                                    itemExtent: selectorItemHeight,
-                                    onSelectedItemChanged: _onYearChange,
-                                    children: List.generate(yearItemCount, (
-                                      idx,
-                                    ) {
-                                      int y = minYear + idx;
-                                      return Center(
-                                        child: Text(
-                                          "$y 年",
-                                          style: TextStyle(
-                                            fontSize: itemTextFontSize,
+            Center(
+              child: Container(
+                width: screenWidth * AppBase.popBoxWidthRatio,
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppBase.popBoxVerticalPadding,
+                  horizontal: AppBase.popBoxHorizontalPadding,
+                ),
+                decoration: BoxDecoration(
+                  color: widget.bgColor,
+                  borderRadius: BorderRadius.circular(AppBase.popBoxRadius),
+                ),
+                child: Stack(
+                  children: [
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(height: gapSelectorBtn),
+                        Row(
+                          children: [
+                            // 年份滚轮
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  SizedBox(
+                                    height: selectorPanelHeight,
+                                    child: CupertinoPicker(
+                                      scrollController: _yearCtrl,
+                                      itemExtent: selectorItemHeight,
+                                      onSelectedItemChanged: _onYearChange,
+                                      children: List.generate(yearItemCount, (
+                                        idx,
+                                      ) {
+                                        int y = minYear + idx;
+                                        return Center(
+                                          child: Text(
+                                            "$y 年",
+                                            style: TextStyle(
+                                              fontSize: itemTextFontSize,
+                                            ),
                                           ),
-                                        ),
-                                      );
-                                    }),
+                                        );
+                                      }),
+                                    ),
                                   ),
-                                ),
 
-                                TextField(
-                                  keyboardType: TextInputType.number,
-                                  autocorrect: false,
-                                  enableSuggestions: false,
-                                  controller: _yTxtCtrl,
-                                  onChanged: (value) {
-                                    if (value.isEmpty || _isWheelScrolling) {
-                                      return;
-                                    }
-                                    int? num = int.tryParse(value);
-                                    if (num == null) return;
-                                    if (num > maxYear || num == 0) {
-                                      _yTxtCtrl.text = maxYear.toString();
-                                    }
-                                    if (_yTxtCtrl.text.length == 4 ||
-                                        _yearCtrl.hasClients) {
-                                      _yearCtrl.jumpToItem(
-                                        int.parse(_yTxtCtrl.text) - minYear,
-                                      );
-                                    }
-                                  },
-                                ),
-                              ],
+                                  TextField(
+                                    keyboardType: TextInputType.number,
+                                    autocorrect: false,
+                                    enableSuggestions: false,
+                                    controller: _yTxtCtrl,
+                                    onChanged: (value) {
+                                      if (value.isEmpty || _isWheelScrolling) {
+                                        return;
+                                      }
+                                      int? num = int.tryParse(value);
+                                      if (num == null) return;
+                                      if (num > maxYear || num == 0) {
+                                        _yTxtCtrl.text = maxYear.toString();
+                                      }
+                                      if (_yTxtCtrl.text.length == 4 ||
+                                          _yearCtrl.hasClients) {
+                                        _yearCtrl.jumpToItem(
+                                          int.parse(_yTxtCtrl.text) - minYear,
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
 
-                          // 月份滚轮
-                          Expanded(
-                            child: Column(
-                              children: [
-                                SizedBox(
-                                  height: selectorPanelHeight,
-                                  child: CupertinoPicker(
-                                    scrollController: _monthCtrl,
-                                    itemExtent: selectorItemHeight,
-                                    onSelectedItemChanged: _onMonthChange,
-                                    children: List.generate(12, (idx) {
-                                      int m = idx + 1;
-                                      return Center(
-                                        child: Text(
-                                          "$m 月",
-                                          style: TextStyle(
-                                            fontSize: itemTextFontSize,
+                            // 月份滚轮
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  SizedBox(
+                                    height: selectorPanelHeight,
+                                    child: CupertinoPicker(
+                                      scrollController: _monthCtrl,
+                                      itemExtent: selectorItemHeight,
+                                      onSelectedItemChanged: _onMonthChange,
+                                      children: List.generate(12, (idx) {
+                                        int m = idx + 1;
+                                        return Center(
+                                          child: Text(
+                                            "$m 月",
+                                            style: TextStyle(
+                                              fontSize: itemTextFontSize,
+                                            ),
                                           ),
-                                        ),
-                                      );
-                                    }),
+                                        );
+                                      }),
+                                    ),
                                   ),
-                                ),
 
-                                TextField(
-                                  keyboardType: TextInputType.number,
-                                  autocorrect: false,
-                                  enableSuggestions: false,
-                                  controller: _mTxtCtrl,
-                                  onChanged: (value) {
-                                    if (value.isEmpty || _isWheelScrolling) {
-                                      return;
-                                    }
-                                    int? num = int.tryParse(value);
-                                    if (num == null) return;
-                                    if (num > 12 || num == 0) {
-                                      _mTxtCtrl.text = "12";
-                                    }
-                                    if (_monthCtrl.hasClients) {
-                                      _monthCtrl.jumpToItem(
-                                        int.parse(_mTxtCtrl.text) - 1,
-                                      );
-                                    }
-                                  },
-                                ),
-                              ],
+                                  TextField(
+                                    keyboardType: TextInputType.number,
+                                    autocorrect: false,
+                                    enableSuggestions: false,
+                                    controller: _mTxtCtrl,
+                                    onChanged: (value) {
+                                      if (value.isEmpty || _isWheelScrolling) {
+                                        return;
+                                      }
+                                      int? num = int.tryParse(value);
+                                      if (num == null) return;
+                                      if (num > 12 || num == 0) {
+                                        _mTxtCtrl.text = "12";
+                                      }
+                                      if (_monthCtrl.hasClients) {
+                                        _monthCtrl.jumpToItem(
+                                          int.parse(_mTxtCtrl.text) - 1,
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
 
-                          // 日期滚轮
-                          Expanded(
-                            child: Column(
-                              children: [
-                                SizedBox(
-                                  height: selectorPanelHeight,
-                                  child: CupertinoPicker(
-                                    scrollController: _dayCtrl,
-                                    itemExtent: selectorItemHeight,
-                                    onSelectedItemChanged: _onDayChange,
-                                    children: List.generate(currentMaxDay, (
-                                      idx,
-                                    ) {
-                                      int d = idx + 1;
-                                      return Center(
-                                        child: Text(
-                                          "$d 日",
-                                          style: TextStyle(
-                                            fontSize: itemTextFontSize,
+                            // 日期滚轮
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  SizedBox(
+                                    height: selectorPanelHeight,
+                                    child: CupertinoPicker(
+                                      scrollController: _dayCtrl,
+                                      itemExtent: selectorItemHeight,
+                                      onSelectedItemChanged: _onDayChange,
+                                      children: List.generate(currentMaxDay, (
+                                        idx,
+                                      ) {
+                                        int d = idx + 1;
+                                        return Center(
+                                          child: Text(
+                                            "$d 日",
+                                            style: TextStyle(
+                                              fontSize: itemTextFontSize,
+                                            ),
                                           ),
-                                        ),
-                                      );
-                                    }),
+                                        );
+                                      }),
+                                    ),
                                   ),
-                                ),
-                                TextField(
-                                  keyboardType: TextInputType.number,
-                                  autocorrect: false,
-                                  enableSuggestions: false,
-                                  controller: _dTxtCtrl,
-                                  onChanged: (value) {
-                                    if (value.isEmpty || _isWheelScrolling) {
-                                      return;
-                                    }
-                                    int? num = int.tryParse(value);
-                                    if (num == null) return;
-                                    if (num > currentMaxDay || num == 0) {
-                                      _dTxtCtrl.text = _getMaxDay(
-                                        _selYear,
-                                        _selDay,
-                                      ).toString();
-                                    }
-                                    if (_dayCtrl.hasClients) {
-                                      _dayCtrl.jumpToItem(
-                                        int.parse(_dTxtCtrl.text) - 1,
-                                      );
-                                    }
-                                  },
-                                ),
-                              ],
+                                  TextField(
+                                    keyboardType: TextInputType.number,
+                                    autocorrect: false,
+                                    enableSuggestions: false,
+                                    controller: _dTxtCtrl,
+                                    onChanged: (value) {
+                                      if (value.isEmpty || _isWheelScrolling) {
+                                        return;
+                                      }
+                                      int? num = int.tryParse(value);
+                                      if (num == null) return;
+                                      if (num > currentMaxDay || num == 0) {
+                                        _dTxtCtrl.text = _getMaxDay(
+                                          _selYear.value,
+                                          _selMonth.value,
+                                        ).toString();
+                                      }
+                                      if (_dayCtrl.hasClients) {
+                                        _dayCtrl.jumpToItem(
+                                          int.parse(_dTxtCtrl.text) - 1,
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
 
-                      const SizedBox(height: gapSelectorBtn),
+                        const SizedBox(height: gapSelectorBtn),
 
-                      SizedBox(
-                        width: btnWidth,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: btnVertPadding,
+                        SizedBox(
+                          width: btnWidth,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: btnVertPadding,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(btnRadius),
+                              ),
+                              backgroundColor: widget.btnColor
                             ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(btnRadius),
+                            onPressed: _handleConfirm,
+                            child: const Text(
+                              "确定",
+                              style: TextStyle(fontSize: 16),
                             ),
-                            backgroundColor: widget.btnColor
-                          ),
-                          onPressed: _handleConfirm,
-                          child: const Text(
-                            "确定",
-                            style: TextStyle(fontSize: 16),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  Positioned(
-                    right: - AppBase.popBoxHorizontalPadding / 2,
-                    top: - AppBase.popBoxVerticalPadding / 2,
-                    child: IconButton(
-                      onPressed: () {
-                        widget.onVisible(false);
-                      },
-                      icon: Icon(Icons.close, size: AppBase.popCloseIconSize),
+                      ],
                     ),
-                  ),
-                ],
+                    Positioned(
+                      right: - AppBase.popBoxHorizontalPadding / 2,
+                      top: - AppBase.popBoxVerticalPadding / 2,
+                      child: IconButton(
+                        onPressed: () {
+                          widget.onVisible(false);
+                        },
+                        icon: Icon(Icons.close, size: AppBase.popCloseIconSize),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    });
   }
 }

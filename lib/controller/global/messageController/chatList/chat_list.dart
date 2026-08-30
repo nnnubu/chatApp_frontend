@@ -1,13 +1,12 @@
 import 'package:chatapp/controller/global/messageController/base.dart';
 import 'package:chatapp/controller/global/user_controller.dart';
-import 'package:chatapp/widgets/message/item_info/base_info.dart';
 import 'package:chatapp/widgets/message/item_info/chat_list/chat_item.dart';
 import 'package:get/get.dart';
 
 class ChatListOperate extends ListEvent {
   final int index;
   final ListOperateType type;
-  final BaseInfoItem item;
+  final ChatItem item;
   ChatListOperate({
     required this.type,
     required this.index,
@@ -17,8 +16,9 @@ class ChatListOperate extends ListEvent {
 
 class ConversationState {
   final RxList<ChatItem> messageList;
+  final String conversationUid;
   bool hasMore;
-  ConversationState({this.hasMore = true}) : messageList = <ChatItem>[].obs;
+  ConversationState({required this.conversationUid, this.hasMore = true}) : messageList = <ChatItem>[].obs;
 }
 
 class ChatList {
@@ -27,15 +27,16 @@ class ChatList {
   final UserController userController = Get.find<UserController>();
   ConversationState getConversationState(String conversationUid) {
     if (!_chatMap.containsKey(conversationUid)) {
-      // _chatMap[conversationUid] = <ChatItem>[].obs;
-      _chatMap[conversationUid] = ConversationState();
+      _chatMap[conversationUid] = ConversationState(
+        conversationUid: conversationUid
+      );
     }
     return _chatMap[conversationUid]!;
   }
 
   ({bool isInsert}) addItem(ChatItem newItem, int insertIndex) {
+    // 允许 msgId 为 null（本地乐观插入的消息还未收到后端 ACK）
     if (newItem.conversationUid == null ||
-        newItem.msgId == null ||
         newItem.senderUid == null) {
       return (isInsert: false);
     }
@@ -50,25 +51,51 @@ class ChatList {
       content: newItem.content,
       senderUid: newItem.senderUid,
       msgId: newItem.msgId,
+      requestId: newItem.requestId,
+      sendStatus: newItem.sendStatus.value,
+      isInsertToTop: newItem.isInsertToTop,
     );
-    // 实时发送消息时，后端推送发送者的基础消息 若发送者为自己 则修改渲染信息为自己的信息 若是让后端按发送者来返回信息的话 这个 MessageList 的消息卡片渲染就会出错 发一条消息同一个会话id就会显示自己的头像而不是接收者的头像 虽说可以靠判断来进行修改 但是对于初次渲染消息卡片时同样会出现这个问题 后续再想办法重构吧
-    // if (newItem.senderUid == userController.uid) {
-    //   copyItem.uid = userController.uid;
-    //   copyItem.nickname = userController.nickname;
-    //   copyItem.avatarUrl = userController.avatar.url;
-    // }
 
-    // 后端已经统一在发送消息时推送发送者的基础信息 消息列表的渲染问题后续再解决 此处问题已解决 在 message 界面进行了判断处理
     if (!_chatMap.containsKey(copyItem.conversationUid)) {
-      // _chatMap[conversationUid] = <ChatItem>[].obs;
-      _chatMap[copyItem.conversationUid!] = ConversationState();
+      _chatMap[copyItem.conversationUid!] = ConversationState(
+        conversationUid: copyItem.conversationUid!
+      );
     }
     RxList<ChatItem> list = _chatMap[copyItem.conversationUid]!.messageList;
 
-    final existIndex = list.indexWhere((item) => item.msgId == copyItem.msgId);
-    if (existIndex != -1) {
-      return (isInsert: false);
+    // 去重逻辑：优先用 msgId 去重，其次用 requestId 去重
+    // 后端推送的消息有 msgId，前端临时消息只有 requestId
+    // 当后端推送回消息时，需要用 requestId 找到前端临时消息并替换
+    if (copyItem.msgId != null) {
+      final existIndex = list.indexWhere((item) => item.msgId == copyItem.msgId);
+      if (existIndex != -1) {
+        return (isInsert: false);
+      }
     }
+    if (copyItem.requestId != null) {
+      final existIndex = list.indexWhere((item) => item.requestId == copyItem.requestId);
+      if (existIndex != -1) {
+        // 找到前端临时消息，用后端消息替换（更新 msgId、sendStatus 等）
+        list[existIndex] = copyItem;
+        return (isInsert: false);
+      }
+    }
+    // 兜底去重：如果后端推送的消息没有 requestId，但 content + senderUid 相同
+    // 且是自己发送的消息，认为是同一条消息的重传（不限制状态，因为 ACK 可能先到）
+    // 注意：历史消息（isInsertToTop=true）不应用此去重，因为历史消息中可能存在多条 content 相同的消息
+    if (!copyItem.isInsertToTop &&
+        copyItem.requestId == null &&
+        copyItem.content != null &&
+        copyItem.senderUid == userController.userInfo.value?.uid) {
+      final existIndex = list.indexWhere((item) =>
+          item.content == copyItem.content &&
+          item.senderUid == copyItem.senderUid);
+      if (existIndex != -1) {
+        list[existIndex] = copyItem;
+        return (isInsert: false);
+      }
+    }
+
     if (insertIndex == 0) {
       list.insert(0, copyItem);
     } else {

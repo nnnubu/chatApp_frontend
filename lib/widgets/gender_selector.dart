@@ -1,15 +1,6 @@
 import 'package:chatapp/constants/app_constants.dart';
 import 'package:flutter/material.dart';
 
-const double itemHeight = 200;
-const double itemMargin = 15;
-const double itemRadius = 20;
-const double textFontSize = 30;
-const double gapRowBtn = 50;
-const double btnWidth = 200;
-const double btnVertPadding = 16;
-const double btnRadius = 12;
-const double gapSelectorBtn = 40;
 const Duration animDuration = Duration(milliseconds: 200);
 
 class GenderSelector extends StatefulWidget {
@@ -37,73 +28,42 @@ class GenderSelector extends StatefulWidget {
 
 class _GenderSelectorState extends State<GenderSelector>
     with TickerProviderStateMixin {
-  final Map<int, Icon> _iconMap = {
-    0: Icon(Icons.hide_source),
-    1: Icon(Icons.person_2),
-    2: Icon(Icons.person),
+  final Map<int, IconData> _iconMap = {
+    0: Icons.lock_outline,
+    1: Icons.female,
+    2: Icons.male,
   };
 
   late final Map<int, AnimationController> _ctrlPool;
   late final Map<int, Animation<double>> _scalePool;
-  late final Map<int, Animation<int>> _colorPool;
   int? _curSelect;
 
   void onTapItem(int index) {
     if (_curSelect == index) return;
-
-    if (_curSelect != null) {
-      // 发送 Ticker 启动指令每帧更新控制器的 value 让 旧 item 的AnimatedBuilder 进行更新
-      _ctrlPool[_curSelect]!.reverse();
-    }
-    _curSelect = index;
-    _ctrlPool[index]!.forward(from: 0);
-  }
-
-  (Color colorBox, Color colorText) getColor(int index) {
-    int colorForward = _colorPool[index]!.value;
-    int colorBackward = 255 - _colorPool[index]!.value;
-    Color colorBox = Color.fromARGB(
-      255,
-      colorBackward,
-      colorBackward,
-      colorBackward,
-    );
-    Color colorText = Color.fromARGB(
-      255,
-      colorForward,
-      colorForward,
-      colorForward,
-    );
-    return (colorBox, colorText);
+    setState(() {
+      if (_curSelect != null) {
+        _ctrlPool[_curSelect]!.reverse();
+      }
+      _curSelect = index;
+      _ctrlPool[index]!.forward(from: 0);
+    });
   }
 
   @override
   void initState() {
     super.initState();
-
     _curSelect = widget.initSelect;
     _ctrlPool = {};
     _scalePool = {};
-    _colorPool = {};
-    List indexList = List.generate(
-      widget.genderMap.length,
-      (int index) => index,
-    );
     for (int idx = 0; idx < widget.genderMap.length; idx++) {
       final ctrl = AnimationController(vsync: this, duration: animDuration);
       _ctrlPool[idx] = ctrl;
-
       _scalePool[idx] = Tween<double>(
-        begin: 1,
-        end: 1.2,
-      ).animate(CurvedAnimation(parent: ctrl, curve: Curves.linear));
-
-      _colorPool[idx] = IntTween(
-        begin: 0,
-        end: 255,
-      ).animate(CurvedAnimation(parent: ctrl, curve: Curves.easeIn));
+        begin: 1.0,
+        end: 1.05,
+      ).animate(CurvedAnimation(parent: ctrl, curve: Curves.easeOut));
     }
-    if (_curSelect != null && indexList.contains(_curSelect)) {
+    if (_curSelect != null && _curSelect! < widget.genderMap.length) {
       _ctrlPool[_curSelect]!.forward();
     }
   }
@@ -122,144 +82,120 @@ class _GenderSelectorState extends State<GenderSelector>
     return Positioned.fill(
       child: Stack(
         children: [
-          Positioned.fill(child: ColoredBox(color: Colors.black54)),
-
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () => widget.onVisible(false),
+              child: ColoredBox(color: Colors.black54),
+            ),
+          ),
           Center(
             child: Container(
               width: screenWidth * AppBase.popBoxWidthRatio,
-              padding: const EdgeInsets.symmetric(
-                vertical: AppBase.popBoxVerticalPadding,
-                horizontal: AppBase.popBoxHorizontalPadding,
-              ),
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
               decoration: BoxDecoration(
                 color: widget.bgColor,
-                borderRadius: BorderRadius.circular(AppBase.popBoxRadius),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
               ),
-              child: Stack(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
+                  // 标题
+                  Text(
+                    "选择性别",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: widget.btnColor,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  // 选项卡片
+                  Row(
+                    children: List.generate(widget.genderMap.length, (int index) {
+                      return Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: index == 1 ? 8 : 0,
+                          ),
+                          child: _buildGenderCard(index),
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 24),
+                  // 按钮行
+                  Row(
                     children: [
-                      const SizedBox(height: gapSelectorBtn),
-
-                      Row(
-                        children: List.generate(widget.genderMap.length, (
-                          int index,
-                        ) {
-                          return KeyedSubtree(
-                            key: ValueKey(index),
-                            child: Expanded(
-                              flex: 1,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(itemRadius),
-                                onTap: () => onTapItem(index),
-                                child: AnimatedBuilder(
-                                  animation: Listenable.merge([
-                                    _scalePool[index],
-                                    _colorPool[index],
-                                  ]),
-                                  builder: (context, child) {
-                                    // 只需要等于自己的动画值就好，因为 onTapItem 会根据当前点击的 index 和 全局的 _curSelect 来选择哪一个 Item 进行什么操作
-
-                                    double scale = _scalePool[index]!.value;
-                                    final (colorBox, colorText) = getColor(
-                                      index,
-                                    );
-
-                                    return Transform.scale(
-                                      scale: scale,
-                                      child: Container(
-                                        margin: EdgeInsets.all(15),
-                                        height: itemHeight,
-                                        decoration: BoxDecoration(
-                                          color: colorBox,
-                                          borderRadius: BorderRadius.circular(
-                                            itemRadius,
-                                          ),
-                                          border: Border.all(
-                                            width: 1,
-                                            style: BorderStyle.solid,
-                                            color: colorText,
-                                          ),
-                                        ),
-                                        // 使用 IconTheme 和 defaultTextStyle 这类无画面渲染仅为child传递动态参数的配置组件略微节省一点资源
-                                        child: IconTheme(
-                                          data: IconThemeData(
-                                            color: colorText,
-                                            size: AppBase.iconSize,
-                                          ),
-                                          child: DefaultTextStyle(
-                                            style: TextStyle(
-                                              color: colorText,
-                                              fontSize: textFontSize,
-                                            ),
-                                            child: child!,
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  child: Center(
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.center,
-                                      children: [
-                                        _iconMap[index]!,
-                                        const SizedBox(height: 8),
-                                        Text("${widget.genderMap[index]}"),
-                                      ],
-                                    ),
-                                  ),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => widget.onVisible(false),
+                          child: Container(
+                            height: 44,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: Center(
+                              child: Text(
+                                "取消",
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ),
-                          );
-                        }),
-                      ),
-
-                      const SizedBox(height: gapSelectorBtn),
-
-                      SizedBox(
-                        width: 200,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: btnVertPadding,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(btnRadius),
-                            ),
-                            backgroundColor: widget.btnColor,
                           ),
-                          onPressed: () {
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
                             if (_curSelect != null) {
                               widget.onSelect(_curSelect!);
                             }
                             widget.onVisible(false);
                           },
-                          child: const Text(
-                            "确定",
-                            style: TextStyle(fontSize: 15),
+                          child: Container(
+                            height: 44,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  widget.btnColor,
+                                  widget.btnColor.withOpacity(0.85),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: widget.btnColor.withOpacity(0.4),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: const Center(
+                              child: Text(
+                                "确定",
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
-
-                      const SizedBox(height: 15),
                     ],
-                  ),
-
-                  Positioned(
-                    right: -AppBase.popBoxHorizontalPadding / 2,
-                    top: -AppBase.popBoxVerticalPadding / 2,
-                    child: IconButton(
-                      onPressed: () {
-                        widget.onVisible(false);
-                      },
-                      icon: Icon(Icons.close, size: AppBase.popCloseIconSize),
-                    ),
                   ),
                 ],
               ),
@@ -267,6 +203,54 @@ class _GenderSelectorState extends State<GenderSelector>
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildGenderCard(int index) {
+    final isSelected = _curSelect == index;
+    return AnimatedBuilder(
+      animation: _scalePool[index]!,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scalePool[index]!.value,
+          child: GestureDetector(
+            onTap: () => onTapItem(index),
+            child: AnimatedContainer(
+              duration: animDuration,
+              height: 100,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? widget.btnColor.withOpacity(0.1)
+                    : Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isSelected ? widget.btnColor : Colors.grey.shade200,
+                  width: isSelected ? 2 : 1,
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    _iconMap[index] ?? Icons.person,
+                    size: 32,
+                    color: isSelected ? widget.btnColor : Colors.grey.shade500,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "${widget.genderMap[index]}",
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                      color: isSelected ? widget.btnColor : Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

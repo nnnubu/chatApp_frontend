@@ -32,9 +32,30 @@ class _UserInfoViewState extends State<UserInfoView>
   final RxBool _isNeedQR = false.obs;
   UploadState? uploadState;
   List themeTypeList = ThemeType.values;
-  int themeIndex = 0;
   // 延迟加载预渲染组件
   final RxBool _preloadShaderReady = false.obs;
+
+  // 每个主题对应的图标
+  IconData _themeIcon(ThemeType type) {
+    switch (type) {
+      case ThemeType.freshGreen:
+        return Icons.eco;
+      case ThemeType.warmVintageT:
+        return Icons.local_cafe;
+      case ThemeType.darkTheme:
+        return Icons.nightlight_round;
+      case ThemeType.oceanBlue:
+        return Icons.water;
+      case ThemeType.sakuraPink:
+        return Icons.local_florist;
+      case ThemeType.midnightPurple:
+        return Icons.bedtime;
+      case ThemeType.minimalWhite:
+        return Icons.wb_sunny;
+      case ThemeType.sunsetOrange:
+        return Icons.wb_twilight;
+    }
+  }
 
   Future<void> getUserQR() async {
     uploadState = await UserService.getUserQR();
@@ -45,10 +66,6 @@ class _UserInfoViewState extends State<UserInfoView>
       return;
     }
 
-    // setState(() {
-    //   _isNeedQR = true;
-    // });
-    // 既然使用了 obx 就不要使用 setState 了 两者的刷新会重叠，浪费性能
     _isNeedQR.value = true;
   }
 
@@ -68,29 +85,29 @@ class _UserInfoViewState extends State<UserInfoView>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    // final userCtrl = Get.find<UserController>();
-    // Obx(() { return xxx })
-    // Obx内部读取 userCtrl 的响应式变量，变量修改页面自动刷新
-    // 注意，Obx 的修改是会把其包裹的所有组件直接卸载重装
-    // 但 Obx 的回调闭包内部 要求 必须至少读取 1 个 Rx 响应式变量，GetX 才能建立数据变更的刷新监听
     return Obx(() {
-      // 响应式变量一定要在此处声明，否则会报错
       final AppTheme theme = _themeController.currentTheme;
       double screenWidth = MediaQuery.of(context).size.width;
       double safeTop = DeviceSize.instance.statusBarHeight;
       return Stack(
         children: [
-          UserProfile(
-            targetUid: _userController.uid,
-            themeController: _themeController,
-            onNeedQR: () {
-              _isNeedQR.value = true;
-            },
+          // UserProfile 占满整个 Stack，确保内部 Expanded 正确计算高度
+          Positioned.fill(
+            child: UserProfile(
+              targetUid: _userController.uid,
+              themeController: _themeController,
+              onNeedQR: () {
+                _isNeedQR.value = true;
+              },
+            ),
           ),
 
-          Positioned.fill(
+          // 顶部按钮栏（退出、编辑、二维码、主题切换）
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
             child: Container(
-              // height: 150 + safeTop,
               padding: EdgeInsets.fromLTRB(0, safeTop, 0, 0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -101,13 +118,7 @@ class _UserInfoViewState extends State<UserInfoView>
                     child: IconButton(
                       onPressed: () async {
                         if (!mounted) return;
-                        // Navigator.pushReplacement(
-                        //   context,
-                        //   MaterialPageRoute(builder: (context) => Login()),
-                        // );
                         await Get.offAllNamed("/login");
-                        // 先等待跳转页面完成，再清空缓存中的个人信息，否则依赖的组件会报错,但是页面跳转之后，这各清空缓存的函数就不会触发了，所以清空缓存 放在页面跳转的前后都不行,所以决定放在跳到登录页用户发起登录请求之前再清空缓存
-                        // await _userController.clearUserInfo();
                       },
                       icon: Icon(
                         Icons.exit_to_app,
@@ -120,10 +131,6 @@ class _UserInfoViewState extends State<UserInfoView>
                     children: [
                       IconButton(
                         onPressed: () {
-                          // Navigator.push(
-                          //   context,
-                          //   MaterialPageRoute(builder: (context) => ProfileEdit()),
-                          // );
                           Get.toNamed("/profileEdit");
                         },
                         icon: Icon(
@@ -144,19 +151,24 @@ class _UserInfoViewState extends State<UserInfoView>
                       ),
                       IconButton(
                         onPressed: () {
-                          if (themeIndex == themeTypeList.length - 1) {
-                            themeIndex = 0;
-                          } else {
-                            themeIndex += 1;
-                          }
-                          _themeController.switchTheme(
-                            themeTypeList[themeIndex],
-                          );
+                          final currentIdx = themeTypeList.indexOf(_themeController.currentType);
+                          final nextIdx = (currentIdx + 1) % themeTypeList.length;
+                          _themeController.switchTheme(themeTypeList[nextIdx]);
                         },
-                        icon: Icon(
-                          Icons.sunny,
-                          size: AppBase.iconSize,
-                          color: Colors.white,
+                        icon: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 400),
+                          transitionBuilder: (child, anim) {
+                            return RotationTransition(
+                              turns: Tween<double>(begin: 0.5, end: 1.0).animate(anim),
+                              child: FadeTransition(opacity: anim, child: child),
+                            );
+                          },
+                          child: Icon(
+                            _themeIcon(_themeController.currentType),
+                            key: ValueKey(_themeController.currentType),
+                            size: AppBase.iconSize,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ],
@@ -166,12 +178,12 @@ class _UserInfoViewState extends State<UserInfoView>
             ),
           ),
 
+          // 二维码弹窗
           if (_isNeedQR.value)
             Positioned.fill(
               child: Stack(
                 children: [
                   Positioned.fill(child: ColoredBox(color: Colors.black54)),
-
                   Center(
                     child: Container(
                       width: screenWidth * AppBase.popBoxWidthRatio,
@@ -180,7 +192,7 @@ class _UserInfoViewState extends State<UserInfoView>
                         horizontal: AppBase.popBoxHorizontalPadding,
                       ),
                       decoration: BoxDecoration(
-                        color: theme.backGroundColor,
+                        color: theme.scaffoldBg,
                         borderRadius: BorderRadius.circular(
                           AppBase.popBoxRadius,
                         ),
@@ -207,7 +219,6 @@ class _UserInfoViewState extends State<UserInfoView>
                               );
                             },
                           ),
-
                           Positioned(
                             right: -AppBase.popBoxHorizontalPadding / 2,
                             top: -AppBase.popBoxVerticalPadding / 2,
@@ -228,10 +239,9 @@ class _UserInfoViewState extends State<UserInfoView>
                 ],
               ),
             ),
-          // 可预加载时，把后续的组件假如Stack中
+
+          // 预加载着色器
           if (_preloadShaderReady.value)
-            // Offstage 组件可以让其 child 脱离可视树，不渲染到屏幕
-            // 对比 Visibility(visible:false)：Visibility 会保留占位空白区域，Offstage 直接彻底脱离布局流，不占用任何屏幕空间
             Offstage(
               offstage: true,
               child: SizedBox(
@@ -239,14 +249,9 @@ class _UserInfoViewState extends State<UserInfoView>
                 height: AppBase.bgImgHeight,
                 child: ShaderMask(
                   shaderCallback: (Rect bounds) {
-                    // 复用全局静态 _bgImgGradient 实例
                     return _bgImgGradient.createShader(bounds);
                   },
                   blendMode: BlendMode.dstIn,
-                  // 不将ShaderMask包裹在刷新组件内，仅内层Image响应数据更新
-                  // 1. 全局固定Gradient，GPU着色程序仅编译一次并缓存，不会重复编译闪烁
-                  // 2. ShaderMask全程只初始化一次，shaderCallback仅执行一次，减少CPU重复创建着色器对象开销
-                  // 3. 渐变遮罩仅控制透明度渲染规则，与图片资源完全解耦，更换图片不影响遮罩效果
                   child: userBgImg(bgImg: _userController.bgImg),
                 ),
               ),

@@ -1,47 +1,25 @@
 import 'package:chatapp/dto/dto_image.dart';
-import 'package:chatapp/utils/build_static_url.dart';
+import 'package:chatapp/widgets/app_image.dart';
 import 'package:flutter/material.dart';
 
+/// 用户头像组件
 Widget userAvater({required ImageResp avatar}) {
-  if (avatar.url.isEmpty) {
-    return Container(color: Colors.grey); // 占位，不渲染空url的Image.network
-  }
-  return Container(
+  return AppImage(
+    imageUrl: avatar.url,
+    width: 120,
     height: 120,
-    clipBehavior: Clip.hardEdge,
-    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black54),
-    child: Image.network(
-      buildStaticUrl(avatar.url),
-      cacheHeight: avatar.thumbH,
-      cacheWidth: avatar.thumbW,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stack) {
-        return Container(
-          decoration: BoxDecoration(color: Colors.grey),
-          child: Icon(Icons.error),
-        );
-      },
-    ),
+    type: AppImageType.avatar,
+    borderRadius: BorderRadius.circular(60),
   );
 }
 
+/// 用户背景图组件
 Widget userBgImg({required ImageResp bgImg}) {
-  if (bgImg.url.isEmpty) {
-    return Container(color: Colors.grey); // 占位，不渲染空url的Image.network
-  }
-  return Container(
-    decoration: BoxDecoration(color: Colors.black54),
-    child: Image.network(
-      buildStaticUrl(bgImg.url),
-      cacheHeight: bgImg.thumbH,
-      cacheWidth: bgImg.thumbW,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stack) {
-        return Container(
-          decoration: BoxDecoration(color: Colors.grey),
-          child: Icon(Icons.error),
-        );
-      },
-    ),
+  return AppImage(
+    imageUrl: bgImg.url,
+    width: double.infinity,
+    height: double.infinity,
+    type: AppImageType.background,
+    fit: BoxFit.cover,
   );
 }

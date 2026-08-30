@@ -12,6 +12,14 @@ import 'package:chatapp/dto/dto_message.dart';
 import 'package:chatapp/ws/message_dispatcher.dart';
 import 'package:get/get.dart';
 
+/// 搜索结果列表操作事件
+class SearchResultOperate extends ListEvent {
+  final int index;
+  final ListOperateType type;
+  final dynamic item;
+  SearchResultOperate({required this.type, required this.index, required this.item});
+}
+
 class MessageController extends GetxController {
   late final StreamSubscription<MessageBusEvent> _messageSub;
 
@@ -222,6 +230,20 @@ class MessageController extends GetxController {
     );
   }
 
+
+  // 添加搜索结果项
+  void addSearchResultItem(dynamic item, int index) {
+    _operateStream.add(
+      SearchResultOperate(type: ListOperateType.insert, index: index, item: item),
+    );
+  }
+
+  // 删除搜索结果项
+  void removeSearchResultItem(int index, dynamic item) {
+    _operateStream.add(
+      SearchResultOperate(type: ListOperateType.remove, index: index, item: item),
+    );
+  }
   // 初始化消息 及初始化拉取离线内容
   Future<void> initMessagePage() async {
     // 注意优先级顺序 若是先拉取离线好友请求

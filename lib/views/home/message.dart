@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:chatapp/constants/app_constants.dart';
 import 'package:chatapp/controller/global/messageController/categoryList/category_list.dart';
@@ -6,6 +6,7 @@ import 'package:chatapp/controller/global/messageController/messageList/message_
 import 'package:chatapp/controller/global/theme_controller.dart';
 import 'package:chatapp/controller/global/messageController/base.dart';
 import 'package:chatapp/controller/global/messageController/message_controller.dart';
+import 'package:chatapp/dto/dto_others.dart';
 import 'package:chatapp/pages/stranger_preview.dart';
 import 'package:chatapp/service/user_service.dart';
 import 'package:chatapp/utils/build_static_url.dart';
@@ -19,6 +20,7 @@ import 'package:chatapp/widgets/message/item_info/chat_list/chat_item.dart';
 import 'package:chatapp/widgets/message/item_info/message_list/friend_apply_item.dart';
 import 'package:chatapp/widgets/wave_container.dart';
 import 'package:chatapp/ws/websocket_service.dart';
+import 'package:chatapp/ws/heart_beat.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -46,6 +48,12 @@ class _MessageView extends State<MessageView>
   final RxBool isTopSlideOpen = false.obs;
   final RxList<dynamic> _emptyRxList =
       <dynamic>[].obs; // 兜底用空列表 防止 key 重复变换引用触发重建
+  final RxBool _isSearching = false.obs;
+  final RxString _searchKeyword = ''.obs;
+  final RxList<dynamic> _searchResults = <dynamic>[].obs;
+  final GlobalKey<AnimatedListState> _searchListKey = GlobalKey<AnimatedListState>();
+  Timer? _searchDebounce;
+  final TextEditingController _searchController = TextEditingController();
 
   Future<void> updateApply(FriendApplyMessageItem item, bool isAgree) async {
     if (_isSubmitting.value) return;
@@ -64,6 +72,55 @@ class _MessageView extends State<MessageView>
 
   void _deleteItem(String targetUid) {
     _messageController.deleteMessageListItem(targetUid);
+  }
+
+  void _onSearchChanged(String value) {
+    _searchKeyword.value = value;
+    if (_searchDebounce != null) {
+      _searchDebounce!.cancel();
+    }
+    if (value.trim().isEmpty) {
+      _isSearching.value = false;
+      _clearSearchResults();
+      return;
+    }
+    _isSearching.value = true;
+    _searchDebounce = Timer(const Duration(milliseconds: 500), () {
+      _doSearch(value.trim());
+    });
+  }
+
+  void _clearSearchResults() {
+    // 从后往前推送删除事件
+    for (int i = _searchResults.length - 1; i >= 0; i--) {
+      final item = _searchResults[i];
+      _searchResults.removeAt(i);
+      _messageController.removeSearchResultItem(i, item);
+    }
+  }
+
+  Future<void> _doSearch(String keyword) async {
+    try {
+      debugPrint('搜索关键词: $keyword');
+      final results = await UserService.searchFriends(keyword);
+      debugPrint('搜索结果数量: ${results?.length ?? 0}');
+      _clearSearchResults();
+      _isSearching.value = false;
+      if (results != null && results.isNotEmpty) {
+        // 等高度动画完成（300ms）+ 一帧，确保 AnimatedList 已渲染
+        await Future.delayed(const Duration(milliseconds: 350));
+        debugPrint('开始插入搜索结果，当前 _searchResults 长度: ${_searchResults.length}');
+        for (int i = 0; i < results.length; i++) {
+          _searchResults.add(results[i]);
+          _messageController.addSearchResultItem(results[i], i);
+          debugPrint('插入搜索结果 index=$i, name=${results[i].nickname}');
+        }
+        debugPrint('插入完成，_searchResults 长度: ${_searchResults.length}');
+      }
+    } catch (e) {
+      debugPrint('搜索失败: $e');
+      _isSearching.value = false;
+    }
   }
 
   @override
@@ -111,57 +168,79 @@ class _MessageView extends State<MessageView>
         child: Column(
           children: [
             // 网络错误 手动重连入口
-            AnimatedContainer(
-              color: t.backGroundColor,
-              duration: const Duration(milliseconds: 800),
-              height: manualReconnecting || exhausted ? 90 : 0,
-              padding: EdgeInsets.fromLTRB(0, safeTopPadding, 0, 0),
-              child: Container(
-                color: Colors.red,
-                child: manualReconnecting
-                    ? const Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Text(
-                              "正在尝试重连…",
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ],
-                        ),
-                      )
-                    : InkWell(
-                        onTap: () {
-                          WebSocketService.instance.manualReconnect();
-                        },
-                        child: SizedBox.expand(
+            Obx(() {
+              final exhausted = WebSocketService.instance.autoReconnectExhausted.value;
+              final manualReconnecting = WebSocketService.instance.isManuallyReconnecting.value;
+              final backendReady = WebSocketService.instance.backendReady.value;
+              final health = WebSocketService.instance.connectionHealth.value;
+              final Color barColor;
+              final String barText;
+              final bool showSpinner;
+              if (manualReconnecting && !backendReady) {
+                barColor = Colors.orange;
+                barText = "正在连接服务器…";
+                showSpinner = true;
+              } else if (manualReconnecting && backendReady && health == ConnectionHealth.unconfirmed) {
+                barColor = Colors.blue;
+                barText = "正在检测链路健康…";
+                showSpinner = true;
+              } else {
+                barColor = Colors.red;
+                barText = "当前无网络，点击重新连接";
+                showSpinner = false;
+              }
+              return AnimatedContainer(
+                color: t.backGroundColor,
+                duration: const Duration(milliseconds: 800),
+                height: manualReconnecting || exhausted ? 90 : 0,
+                padding: EdgeInsets.fromLTRB(0, safeTopPadding, 0, 0),
+                child: Container(
+                  color: barColor,
+                  child: showSpinner
+                      ? Center(
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
-                            children: const [
-                              Text(
-                                "当前无网络，点击重新连接",
-                                style: TextStyle(color: Colors.white),
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
                               ),
-                              SizedBox(width: 5),
-                              Icon(
-                                Icons.restart_alt_sharp,
-                                color: Colors.white,
+                              SizedBox(width: 8),
+                              Text(
+                                barText,
+                                style: TextStyle(color: Colors.white),
                               ),
                             ],
                           ),
+                        )
+                      : InkWell(
+                          onTap: () {
+                            WebSocketService.instance.manualReconnect();
+                          },
+                          child: SizedBox.expand(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  barText,
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                                SizedBox(width: 5),
+                                Icon(
+                                  Icons.restart_alt_sharp,
+                                  color: Colors.white,
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
-              ),
-            ),
+                ),
+              );
+            }),
 
             // 搜索栏
             Container(
@@ -186,10 +265,8 @@ class _MessageView extends State<MessageView>
                       textAlignVertical: TextAlignVertical.center,
                       keyboardType: TextInputType.text,
                       textInputAction: TextInputAction.search,
-                      onFieldSubmitted: (String value) {
-                        debugPrint("点击了搜索");
-                        FocusScope.of(context).unfocus();
-                      },
+                      onChanged: _onSearchChanged,
+                      controller: _searchController,
                       decoration: InputDecoration(
                         hintText: "搜索",
                         // contentPadding: EdgeInsets.symmetric(
@@ -204,7 +281,17 @@ class _MessageView extends State<MessageView>
                           borderRadius: BorderRadius.circular(10),
                           borderSide: BorderSide(color: Colors.grey),
                         ),
-                        suffixIcon: const Icon(Icons.search),
+                        suffixIcon: _searchKeyword.value.trim().isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.close, size: 20),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  _searchKeyword.value = '';
+                                  _clearSearchResults();
+                                  FocusScope.of(context).unfocus();
+                                },
+                              )
+                            : const Icon(Icons.search),
                       ),
                     ),
                   ),
@@ -285,7 +372,7 @@ class _MessageView extends State<MessageView>
                     return Text(
                       info.name,
                       style: TextStyle(
-                        color: _upperContentColor,
+                        color: t.fontColor,
                         fontSize: _upperContentSize - 5,
                       ),
                     );
@@ -412,7 +499,8 @@ class _MessageView extends State<MessageView>
                   onPlayAnimation: () async {
                     isTopSlideOpen.value = true;
                   },
-                  controller: _messageController,
+                  messageController: _messageController,
+                  themeController: _themeController,
                   dataSource: categoryItemList,
                   scrollDirection: Axis.horizontal,
                 ),
@@ -421,9 +509,11 @@ class _MessageView extends State<MessageView>
 
             // 消息栏
             Expanded(
-              child: Container(
-                color: t.backGroundColor,
-                child: CommonAnimatedList(
+              child: Stack(
+                children: [
+                  Container(
+                    color: t.backGroundColor,
+                    child: CommonAnimatedList(
                   type: ListType.messageList,
                   dataSource:
                       _messageController.dataSource[ListType.messageList] ??
@@ -512,12 +602,132 @@ class _MessageView extends State<MessageView>
                       ),
                     );
                   },
-                  controller: _messageController,
+                  messageController: _messageController,
+                  themeController: _themeController,
                   scrollDirection: Axis.vertical,
+                  ),
                 ),
-              ),
+                // 搜索结果覆盖层 AnimatedContainer 高度变化
+                Positioned(
+                  top: 0, left: 0, right: 0,
+                  child: Obx(() {
+                    final showSearch = _searchKeyword.value.trim().isNotEmpty;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutCubic,
+                      height: showSearch ? 400 : 0,
+                      child: ClipRect(
+                        child: Stack(
+                          children: [
+                            Positioned.fill(child: Container(color: t.thirdColor)),
+                            CommonAnimatedList(
+                                      type: ListType.searchResultList,
+                                      messageController: _messageController,
+                                      themeController: _themeController,
+                                      dataSource: _searchResults,
+                                      scrollDirection: Axis.vertical,
+                                      eventPaser: (ListEvent event) {
+                                        if (event is SearchResultOperate) {
+                                          return (
+                                            matched: true,
+                                            index: event.index,
+                                            operateType: event.type,
+                                            item: event.item,
+                                          );
+                                        }
+                                        return null;
+                                      },
+                                      insertItemBuilder: (item, animation) {
+                                        final user = item as OtherUsers;
+                                        return SizeTransition(
+                                          sizeFactor: animation,
+                                          child: InkWell(
+                                            onTap: () {
+                                              Get.to(() => StrangerPreview(targetUid: user.uid));
+                                            },
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                              child: Row(
+                                                crossAxisAlignment: CrossAxisAlignment.center,
+                                                children: [
+                                                  CircleAvatar(
+                                                    radius: 24,
+                                                    backgroundImage: NetworkImage(buildStaticUrl(user.avatar.url)),
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        Row(
+                                                          children: [
+                                                            Flexible(
+                                                              child: Text(
+                                                                user.nickname,
+                                                                style: t.bodyStyle,
+                                                                maxLines: 1,
+                                                                overflow: TextOverflow.ellipsis,
+                                                              ),
+                                                            ),
+                                                            if (user.isFriend) ...[
+                                                              const SizedBox(width: 8),
+                                                              Container(
+                                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                                decoration: BoxDecoration(
+                                                                  color: t.primaryColor.withOpacity(0.15),
+                                                                  borderRadius: BorderRadius.circular(4),
+                                                                ),
+                                                                child: Text(
+                                                                  "已添加",
+                                                                  style: TextStyle(
+                                                                    fontSize: 11,
+                                                                    color: t.primaryColor,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ],
+                                                        ),
+                                                        const SizedBox(height: 4),
+                                                        Text(
+                                                          user.intro.isEmpty ? "这个人很懒，什么都没写" : user.intro,
+                                                          style: t.captionStyle,
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  Icon(Icons.chevron_right, color: t.hintTextColor, size: 20),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      deleteItemBuilder: (item, animation) {
+                                        return SizeTransition(
+                                          sizeFactor: animation,
+                                          child: const SizedBox.shrink(),
+                                        );
+                                      },
+                                    ),
+                            if (_isSearching.value)
+                              Container(
+                                color: t.thirdColor.withOpacity(0.8),
+                                child: const Center(child: CircularProgressIndicator()),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ],
             ),
-          ],
+          ),
+        ],
         ),
       );
     });

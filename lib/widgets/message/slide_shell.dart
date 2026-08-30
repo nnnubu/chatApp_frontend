@@ -9,6 +9,7 @@ class SlideShell extends StatefulWidget {
   final double shellHeight;
   final double actionWidth;
   final bool needReset;
+  final bool autoSlideBack;
   const SlideShell({
     super.key,
     required this.shelllAction,
@@ -17,6 +18,7 @@ class SlideShell extends StatefulWidget {
     required this.shellHeight,
     required this.actionWidth,
     this.needReset = false,
+    this.autoSlideBack = false,
   });
 
   @override
@@ -47,6 +49,13 @@ class _SlideShellState extends State<SlideShell>
     super.initState();
     _slideCtrl = AnimationController(vsync: this, duration: _defaultDuration);
     _animX = const AlwaysStoppedAnimation(0.0);
+    if (widget.autoSlideBack) {
+      _slideX = -widget.actionWidth;
+      _animX = AlwaysStoppedAnimation(-widget.actionWidth);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) slide(0);
+      });
+    }
   }
 
   @override

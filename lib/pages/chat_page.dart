@@ -11,8 +11,10 @@ import 'package:chatapp/service/user_service.dart';
 import 'package:chatapp/utils/request_id_generator.dart';
 import 'package:chatapp/widgets/chat_item_card.dart';
 import 'package:chatapp/widgets/common_animated_list.dart';
+import 'package:chatapp/widgets/message/card/chat_card.dart';
 import 'package:chatapp/widgets/message/item_info/base_info.dart';
 import 'package:chatapp/widgets/message/item_info/chat_list/chat_item.dart';
+import 'package:chatapp/ws/ack_helper.dart';
 import 'package:chatapp/ws/message_dispatcher.dart';
 import 'package:chatapp/ws/websocket_service.dart';
 import 'package:flutter/material.dart';
@@ -39,6 +41,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   bool _isLoadingHistory = false;
   bool _shouldScrollToBottom = false;
   RxDouble loadHistoryBox = 0.0.obs;
+  StreamSubscription? _ackSub;
 
   Future<void> _clearUnRead() async {
     UserService.markReadStatus(_chatItem.conversationUid!);
@@ -48,6 +51,84 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         _chatItem.conversationUid!,
       );
     });
+  }
+
+  
+  /// 根据 requestId 更新乐观渲染消息的发送状态
+  void _updateMessageStatus(String requestId, AckStatus status) {
+    for (int i = 0; i < dataSource.length; i++) {
+      if (dataSource[i] is ChatItem && dataSource[i].requestId == requestId) {
+        final ChatItem item = dataSource[i];
+        item.sendStatus.value = status;
+        break;
+      }
+    }
+  }
+
+  /// 乐观渲染发送消息：先插入本地临时消息，再发送
+  void _sendMessageOptimistic(String content) {
+    final String requestId = RequestIdGenerator.generate();
+    final ChatItem tempMsg = ChatItem(
+      uid: userController.uid,
+      nickname: userController.userInfo.value?.nickname ?? '我',
+      avatarUrl: userController.avatar.url,
+      content: content,
+      senderUid: userController.uid,
+      receiverUid: _chatItem.uid,
+      conversationUid: _chatItem.conversationUid,
+      requestId: requestId,
+      sendStatus: AckStatus.pending,
+    );
+    // 通过 messageController 插入，触发去重和 CommonAnimatedList 动画
+    _messageController.addChatItem(tempMsg, dataSource.length);
+    _shouldScrollToBottom = true;
+    // 发送消息
+    WebSocketService.instance.sendDto(
+      MessageDto(
+        msgType: MessageType.chat,
+        requestId: requestId,
+        data: {
+          "conversationUid": _chatItem.conversationUid,
+          "receiverUid": _chatItem.uid,
+          "content": content,
+        },
+      ),
+    );
+  }
+
+  
+  /// 手动重新发送失败的消息
+  void _resendMessage(ChatItem item) {
+    if (item.requestId == null) return;
+    debugPrint("重发消息 requestId=${item.requestId} 当前状态=${item.sendStatus.value}");
+    // 连接不正常时，先触发手动重连（消息入队后会在重连成功时自动消费）
+    if (!WebSocketService.instance.canSend) {
+      debugPrint("重发时链路不可用，触发手动重连");
+      WebSocketService.instance.manualReconnect();
+    }
+    // 从流放队列取出并重置
+    var dto = WebSocketService.instance.ackHelper.resetForResend(item.requestId);
+    if (dto == null) {
+      debugPrint("重发时流放队列未找到消息，尝试重建 dto");
+      // 兜底：如果流放队列没有，直接重建 dto（消息可能还在 pending 或已被移除）
+      if (item.content == null) return;
+      dto = MessageDto(
+        msgType: MessageType.chat,
+        requestId: item.requestId,
+        data: {
+          "conversationUid": item.conversationUid,
+          "receiverUid": item.receiverUid,
+          "content": item.content,
+        },
+      );
+    }
+    // 从发送队列中移除旧消息，避免 sendDto 去重导致不发送
+    WebSocketService.instance.removeFromQueue(item.requestId);
+    // 更新状态为 pending（转圈）
+    item.sendStatus.value = AckStatus.pending;
+    // 重新入队发送（连接恢复后自动消费）
+    final ok = WebSocketService.instance.sendDto(dto);
+    debugPrint("重发入队结果: $ok");
   }
 
   Future<void> _loadHistory({
@@ -91,14 +172,18 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         (_info as ChatItem).conversationUid!,
       );
       dataSource = _conversationState.messageList;
-      if (dataSource.length < 10) {
-        // 内容高度不够会导致后面的滑动无法被监听到 因此当缓存的消息过少时 进入聊天界面就加载最近的 10 条历史消息
-        _loadHistory(conversationUid: (_info as ChatItem).conversationUid!);
+      if (dataSource.length < 20) {
+        // 内容高度不够会导致后面的滑动无法被监听到 因此当缓存的消息过少时 进入聊天界面就加载最近的 20 条历史消息
+        _loadHistory(conversationUid: (_info as ChatItem).conversationUid!, pageSize: 20);
       }
     } else {
       _isArgumentLegal = false;
     }
     _shouldScrollToBottom = true;
+    // 订阅 ACK 状态流，更新乐观渲染消息状态
+    _ackSub = WebSocketService.instance.ackHelper.ackRespStream.listen((resp) {
+      _updateMessageStatus(resp.requestId, resp.ackStatus);
+    });
   }
 
   @override
@@ -107,6 +192,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // 因为初始化时已经保证消息不可能未空了 所以直接使用!
     _clearUnRead();
     super.dispose();
+    _ackSub?.cancel();
   }
 
   @override
@@ -128,6 +214,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
     double screenWidth = MediaQuery.of(context).size.width;
     double safeTopPadding = DeviceSize.instance.statusBarHeight;
+    double safeBottomPadding = DeviceSize.instance.bottomGestureHeight;
     final AppTheme t = themeController.currentTheme;
     return Scaffold(
       body: MediaQuery.removePadding(
@@ -256,6 +343,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                               axis: isSelf
                                   ? MainAxisAlignment.end
                                   : MainAxisAlignment.start,
+                              onResend: () => _resendMessage(item),
                             ),
                           ),
                         );
@@ -268,13 +356,18 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                         axis: Axis.vertical,
                         child: FadeTransition(
                           opacity: animation,
-                          child: switch (item) {
-                            _ => const SizedBox.shrink(),
-                          },
+                          child: item is ChatItem
+                            ? ChatCard(
+                                item: item,
+                                onDelete: () {},
+                                autoSlideBack: true,
+                              )
+                            : const SizedBox.shrink(),
                         ),
                       );
                     },
-                    controller: _messageController,
+                    messageController: _messageController,
+                    themeController: themeController,
                     shouldAutoScrollBottom: () {
                       final val = _shouldScrollToBottom;
                       if (_shouldScrollToBottom) {
@@ -287,9 +380,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
               ),
 
               Container(
-                padding: EdgeInsets.all(10),
+                padding: EdgeInsets.fromLTRB(10, 10, 10, 10 + safeBottomPadding),
                 width: screenWidth,
-                height: 60,
+                height: 60 + safeBottomPadding,
                 decoration: BoxDecoration(color: t.secondColor),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -328,18 +421,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                         child: InkWell(
                           onTap: () {
                             FocusScope.of(context).unfocus();
-                            WebSocketService.instance.sendDto(
-                              MessageDto(
-                                msgType: MessageType.chat,
-                                requestId: RequestIdGenerator.generate(),
-                                data: {
-                                  "conversationUid": _chatItem.conversationUid,
-                                  "receiverUid": _chatItem.uid,
-                                  "content": _textEditingController.text,
-                                },
-                              ),
-                            );
-                            _shouldScrollToBottom = true;
+                            final text = _textEditingController.text.trim();
+                            if (text.isEmpty) return;
+                            _sendMessageOptimistic(text);
                             _textEditingController.text = "";
                           },
                           splashColor: t.backGroundColor,

@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+﻿import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:chatapp/api/user_api.dart';
@@ -295,6 +295,35 @@ class UserService {
         errMsg = e.message ?? ErrorMsgConstant.networkDefaultErr;
       }
       return CommonState(isSuccess: false, msg: errMsg);
+    }
+  }
+  static Future<List<OtherUsers>?> searchFriends(String keyword) async {
+    try {
+      final res = await UserApi.searchFriends(keyword);
+      print('搜索接口原始响应: $res');
+      // DioUtil 拦截器已剥离 code/message，res 直接就是 data: { list: [...], total: N }
+      if (res != null) {
+        final List<dynamic> list = res['list'] ?? [];
+        print('搜索 list 长度: ${list.length}');
+        return list.map((e) {
+          final map = e as Map<String, dynamic>;
+          final avatarUrl = map['avatar'] ?? '';
+          return OtherUsers(
+            uid: map['uid'] ?? '',
+            nickname: map['nickname'] ?? '',
+            intro: map['intro'] ?? '',
+            avatar: ImageResp(url: avatarUrl, thumbW: 0, thumbH: 0),
+            bgImg: ImageResp(url: '', thumbW: 0, thumbH: 0),
+            isFriend: map['isFriend'] ?? false,
+            conversationUid: map['conversationUid'],
+          );
+        }).toList();
+      }
+      print('搜索解析失败: res=null');
+      return null;
+    } catch (e) {
+      print('搜索异常: $e');
+      return null;
     }
   }
 }

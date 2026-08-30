@@ -1,6 +1,8 @@
 import 'package:chatapp/controller/global/user_controller.dart';
 import 'package:chatapp/controller/global/theme_controller.dart';
+import 'package:chatapp/controller/global/book_controller.dart';
 import 'package:chatapp/controller/global/messageController/message_controller.dart';
+import 'package:chatapp/pages/book_detail.dart';
 import 'package:chatapp/pages/home.dart';
 import 'package:chatapp/pages/login.dart';
 import 'package:chatapp/pages/profile_edit.dart';
@@ -38,6 +40,8 @@ Future<void> main() async {
   Get.put(ThemeController(),permanent: true);
   // 常驻消息控制器
   Get.put(MessageController(),permanent: true);
+  // 常驻图书控制器
+  Get.put(BookController(), permanent: true);
   runApp(const MyApp());
 }
 
@@ -52,57 +56,68 @@ class MyApp extends StatelessWidget {
     // 1. 可自定义页面过渡动画
     // 2. 可在页面跳转时直接传参
     // 3. 可在main页面集中管理路由
-    return GetMaterialApp(
-      initialRoute: "/", //自定义初始页面
-      // routes: {
-      //   "/": (context) => const Splash(), // 写了这个路由就不需要写下面被注释掉的 home 属性了
-      //   "/login": (context) => const Login(),
-      //   "/register": (context) => const Register(),
-      //   "/resetPwd": (context) => const ResetPwd(),
-      //   "/home": (context) => const Home(),
-      //   "/profileEdit": (context) => const ProfileEdit(),
-      // },
-      getPages: [
-        GetPage(name: "/", page: () => const Splash(), curve: Curves.easeOut),
-        GetPage(
-          name: "/login",
-          page: () => const Login(),
-          transition: Transition.leftToRight,
-          curve: Curves.easeOut,
-        ),
-        GetPage(
-          name: "/register",
-          page: () => const Register(),
-          curve: Curves.easeOut,
-        ),
-        GetPage(
-          name: "/resetPwd",
-          page: () => const ResetPwd(),
-          curve: Curves.easeOut,
-        ),
-        GetPage(name: "/home", page: () => const Home(), curve: Curves.easeOut),
-        GetPage(
-          name: "/profileEdit",
-          page: () => const ProfileEdit(),
-          transition: Transition.upToDown,
-          curve: Curves.easeOut,
-        ),
-        GetPage(
-          name: "/scanQR",
-          page: () => const ScanQr(),
-          transition: Transition.upToDown,
-          curve: Curves.easeOut,
-        ),
-      ],
+    // Obx 监听主题变化，切换主题时自动重建整个应用
+    return Obx(() {
+      final themeController = Get.find<ThemeController>();
+      return GetMaterialApp(
+        initialRoute: "/", //自定义初始页面
+        theme: themeController.themeData,
+        themeMode: ThemeMode.light, // 主题由我们自己管理，不跟随系统
+        // routes: {
+        //   "/": (context) => const Splash(), // 写了这个路由就不需要写下面被注释掉的 home 属性了
+        //   "/login": (context) => const Login(),
+        //   "/register": (context) => const Register(),
+        //   "/resetPwd": (context) => const ResetPwd(),
+        //   "/home": (context) => const Home(),
+        //   "/profileEdit": (context) => const ProfileEdit(),
+        // },
+        getPages: [
+          GetPage(name: "/", page: () => const Splash(), curve: Curves.easeOut),
+          GetPage(
+            name: "/login",
+            page: () => const Login(),
+            transition: Transition.leftToRight,
+            curve: Curves.easeOut,
+          ),
+          GetPage(
+            name: "/register",
+            page: () => const Register(),
+            curve: Curves.easeOut,
+          ),
+          GetPage(
+            name: "/resetPwd",
+            page: () => const ResetPwd(),
+            curve: Curves.easeOut,
+          ),
+          GetPage(name: "/home", page: () => const Home(), curve: Curves.easeOut),
+          GetPage(
+            name: "/profileEdit",
+            page: () => const ProfileEdit(),
+            transition: Transition.upToDown,
+            curve: Curves.easeOut,
+          ),
+          GetPage(
+            name: "/scanQR",
+            page: () => const ScanQr(),
+            transition: Transition.upToDown,
+            curve: Curves.easeOut,
+          ),
+          GetPage(
+            name: "/bookDetail",
+            page: () => const BookDetailPage(),
+            transition: Transition.rightToLeft,
+            curve: Curves.easeOut,
+          ),
+        ],
 
-      // defaultTransition, transitionDuration 得搭配 getPages 使用才有效 上面注释的 routes无法读取这两个全局动画配置
-      defaultTransition: Transition.rightToLeft,
-      transitionDuration: Duration(milliseconds: 300),
+        // defaultTransition, transitionDuration 得搭配 getPages 使用才有效 上面注释的 routes无法读取这两个全局动画配置
+        defaultTransition: Transition.rightToLeft,
+        transitionDuration: Duration(milliseconds: 300),
 
-      title: 'ChatApp',
-      // theme: ThemeData.light(useMaterial3: true),
-      debugShowCheckedModeBanner: false,
-      // home:  Splash(),
-    );
+        title: 'ChatApp',
+        debugShowCheckedModeBanner: false,
+        // home:  Splash(),
+      );
+    });
   }
 }

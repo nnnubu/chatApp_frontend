@@ -9,7 +9,12 @@ import 'package:get/get.dart';
 
 class StrangerPreview extends StatefulWidget {
   final String targetUid;
-  const StrangerPreview({super.key, required this.targetUid});
+  final bool initialIsFriend;
+  const StrangerPreview({
+    super.key,
+    required this.targetUid,
+    this.initialIsFriend = false,
+  });
 
   @override
   State<StrangerPreview> createState() {
@@ -17,11 +22,15 @@ class StrangerPreview extends StatefulWidget {
   }
 }
 
-class _StrangePreViewState extends State<StrangerPreview> {
+class _StrangePreViewState extends State<StrangerPreview>
+    with SingleTickerProviderStateMixin {
   late ThemeController _themeController;
   late TextEditingController _msgController;
   final RxBool _addFriends = false.obs;
   final RxnString _msgError = RxnString();
+  late final AnimationController _popAnimController;
+  late final Animation<double> _popScaleAnim;
+  late final Animation<double> _popFadeAnim;
 
   Future<void> addFriends() async {
     String msg = _msgController.text.trim();
@@ -46,11 +55,32 @@ class _StrangePreViewState extends State<StrangerPreview> {
     super.initState();
     _themeController = Get.find<ThemeController>();
     _msgController = TextEditingController();
+    _popAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+    );
+    _popScaleAnim = CurvedAnimation(
+      parent: _popAnimController,
+      curve: Curves.easeOutBack,
+    );
+    _popFadeAnim = CurvedAnimation(
+      parent: _popAnimController,
+      curve: Curves.easeOut,
+    );
+    // 监听弹窗显示状态
+    ever(_addFriends, (visible) {
+      if (visible) {
+        _popAnimController.forward();
+      } else {
+        _popAnimController.reverse();
+      }
+    });
   }
 
   @override
   void dispose() {
     _msgController.dispose();
+    _popAnimController.dispose();
     super.dispose();
   }
 
@@ -68,6 +98,7 @@ class _StrangePreViewState extends State<StrangerPreview> {
             UserProfile(
               targetUid: widget.targetUid,
               themeController: _themeController,
+              initialIsFriend: widget.initialIsFriend,
               onAddFriends: () {
                 _addFriends.value = true;
               },
@@ -76,7 +107,6 @@ class _StrangePreViewState extends State<StrangerPreview> {
               top: 0,
               left: 0,
               child: Container(
-                // height: 150 + safeTop,
                 padding: EdgeInsets.fromLTRB(0, safeTop, 0, 0),
                 child: IconButton(
                   onPressed: () {
@@ -92,146 +122,196 @@ class _StrangePreViewState extends State<StrangerPreview> {
             ),
 
             Obx(() {
-              if (!_addFriends.value) return SizedBox.shrink();
+              if (!_addFriends.value) return const SizedBox.shrink();
               return Positioned.fill(
-                child: Stack(
-                  children: [
-                    Positioned.fill(child: ColoredBox(color: Colors.black54)),
+                child: FadeTransition(
+                  opacity: _popFadeAnim,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(child: const ColoredBox(color: Colors.black54)),
+                      Center(
+                        child: ScaleTransition(
+                          scale: _popScaleAnim,
+                          child: Container(
+                            width: screenWidth * AppBase.popBoxWidthRatio,
+                            padding: EdgeInsets.symmetric(
+                              vertical: AppBase.popBoxVerticalPadding,
+                              horizontal: AppBase.popBoxHorizontalPadding,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.scaffoldBg,
+                              borderRadius: BorderRadius.circular(
+                                AppBase.popBoxRadius,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: Stack(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(5, 5, 5, 5),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        height: 50,
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              "添加好友",
+                                              style: theme.headingStyle.copyWith(fontSize: 20),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
 
-                    Center(
-                      child: Container(
-                        width: screenWidth * AppBase.popBoxWidthRatio,
-                        padding: EdgeInsets.symmetric(
-                          vertical: AppBase.popBoxVerticalPadding,
-                          horizontal: AppBase.popBoxHorizontalPadding,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.backGroundColor,
-                          borderRadius: BorderRadius.circular(
-                            AppBase.popBoxRadius,
+                                      Obx(() {
+                                        return Container(
+                                          decoration: BoxDecoration(
+                                            color: theme.inputBgColor,
+                                            borderRadius: BorderRadius.circular(theme.inputRadius),
+                                            border: Border.all(
+                                              color: _msgError.value != null ? theme.errorColor : theme.dividerColor,
+                                              width: 1,
+                                            ),
+                                          ),
+                                          child: TextFormField(
+                                            minLines: 4,
+                                            maxLines: 6,
+                                            controller: _msgController,
+                                            keyboardType: TextInputType.multiline,
+                                            textInputAction: TextInputAction.newline,
+                                            style: theme.bodyStyle,
+                                            decoration: InputDecoration(
+                                              labelText: "打招呼内容",
+                                              labelStyle: theme.captionStyle,
+                                              hintText: "输入好友验证信息",
+                                              alignLabelWithHint: true,
+                                              border: InputBorder.none,
+                                              errorText: _msgError.value,
+                                              errorStyle: TextStyle(color: theme.errorColor, fontSize: 12),
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                            ),
+                                            onChanged: (value) {
+                                              final String? err =
+                                                  CheckInput.verifyMsg(value.trim());
+                                              _msgError.value = err;
+                                            },
+                                          ),
+                                        );
+                                      }),
+
+                                      const SizedBox(height: 16),
+
+                                      // 清空按钮
+                                      GestureDetector(
+                                        onTap: () {
+                                          _msgController.text = "";
+                                        },
+                                        child: Container(
+                                          height: 48,
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(theme.buttonRadius),
+                                            border: Border.all(color: theme.hintTextColor, width: 1),
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              "清空",
+                                              style: theme.bodyStyle.copyWith(
+                                                color: theme.hintTextColor,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+
+                                      const SizedBox(height: 10),
+
+                                      // 发送按钮
+                                      Obx(() {
+                                        final canSend = _msgError.value == null && _msgController.text.trim().isNotEmpty;
+                                        return GestureDetector(
+                                          onTap: canSend ? addFriends : null,
+                                          child: AnimatedContainer(
+                                            duration: const Duration(milliseconds: 200),
+                                            height: 48,
+                                            decoration: BoxDecoration(
+                                              gradient: canSend
+                                                  ? LinearGradient(colors: [
+                                                      theme.primaryColor,
+                                                      theme.primaryColor.withOpacity(0.85),
+                                                    ])
+                                                  : null,
+                                              color: canSend ? null : theme.hintTextColor.withOpacity(0.3),
+                                              borderRadius: BorderRadius.circular(theme.buttonRadius),
+                                              boxShadow: canSend
+                                                  ? [
+                                                      BoxShadow(
+                                                        color: theme.primaryColor.withOpacity(0.4),
+                                                        blurRadius: 12,
+                                                        offset: const Offset(0, 6),
+                                                      ),
+                                                    ]
+                                                  : null,
+                                            ),
+                                            child: Center(
+                                              child: Text(
+                                                "发送",
+                                                style: theme.buttonStyle.copyWith(
+                                                  color: canSend ? Colors.white : theme.hintTextColor,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      }),
+                                    ],
+                                  ),
+                                ),
+
+                                Positioned(
+                                  right: -AppBase.popBoxHorizontalPadding / 2,
+                                  top: -AppBase.popBoxVerticalPadding / 2,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      _addFriends.value = false;
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: theme.scaffoldBg,
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.1),
+                                            blurRadius: 4,
+                                          ),
+                                        ],
+                                      ),
+                                      child: Icon(
+                                        Icons.close,
+                                        size: AppBase.popCloseIconSize,
+                                        color: theme.fontColor,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        child: Stack(
-                          children: [
-                            Padding(
-                              padding: EdgeInsets.fromLTRB(5, 5, 5, 5),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  SizedBox(
-                                    height: 50,
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          "添加好友",
-                                          style: TextStyle(
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-
-                                  Obx(() {
-                                    return TextFormField(
-                                      minLines: 8,
-                                      maxLines: 10, // 设置null代表无限扩展
-                                      expands:
-                                          false, // expands:true 要求强行占满父容器高度，和自动换行互斥，只能用于占据整块区域的输入框
-                                      controller: _msgController,
-                                      keyboardType: TextInputType.multiline,
-                                      textInputAction:
-                                          TextInputAction.newline, // 回车换行
-                                      decoration: InputDecoration(
-                                        // labelText: "打招呼内容",
-                                        label: Text(
-                                          "打招呼内容",
-                                          style: TextStyle(fontSize: 25),
-                                        ),
-                                        hintText: "输入好友验证信息",
-                                        alignLabelWithHint: true,
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        errorText: _msgError.value,
-                                      ),
-                                      onChanged: (value) {
-                                        final String? err =
-                                            CheckInput.verifyMsg(value.trim());
-                                        _msgError.value = err;
-                                      },
-                                    );
-                                  }),
-
-                                  SizedBox(height: 10),
-
-                                  ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      backgroundColor: theme.secondColor,
-                                    ),
-                                    onPressed: () {
-                                      _msgController.text = "";
-                                    },
-                                    child: const Text(
-                                      "清空",
-                                      style: TextStyle(fontSize: 18),
-                                    ),
-                                  ),
-
-                                  SizedBox(height: 10),
-
-                                  ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      backgroundColor: theme.secondColor,
-                                    ),
-                                    onPressed: _msgError.value == null
-                                        ? addFriends
-                                        : null,
-                                    child: const Text(
-                                      "发送",
-                                      style: TextStyle(fontSize: 18),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            Positioned(
-                              right: -AppBase.popBoxHorizontalPadding / 2,
-                              top: -AppBase.popBoxVerticalPadding / 2,
-                              child: IconButton(
-                                onPressed: () {
-                                  _addFriends.value = false;
-                                },
-                                icon: Icon(
-                                  Icons.close,
-                                  size: AppBase.popCloseIconSize,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               );
             }),

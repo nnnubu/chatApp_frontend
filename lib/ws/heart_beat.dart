@@ -1,83 +1,83 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 
 enum ConnectionHealth {
-  unconfirmed, // 刚启动心跳 未收到服务器响应
-  healthy, // 收到服务端消息 判定通路正常
-  dead, // 心跳丢失 判定连接死亡
+  unconfirmed, // 鍒氬惎鍔ㄥ績璺?鏈敹鍒版湇鍔″櫒鍝嶅簲
+  healthy, // 鏀跺埌鏈嶅姟绔秷鎭?鍒ゅ畾閫氳矾姝ｅ父
+  dead, // 蹇冭烦涓㈠け 鍒ゅ畾杩炴帴姝讳骸
 }
 
 class HeartBeat {
   late final StreamController<ConnectionHealth> _healthStreamController;
 
   Stream<ConnectionHealth> get healthStream => _healthStreamController.stream;
-  // 上层监听事件流健康状态变化可进行被动执行
+  // 涓婂眰鐩戝惉浜嬩欢娴佸仴搴风姸鎬佸彉鍖栧彲杩涜琚姩鎵ц
 
   ConnectionHealth _currentHealth = ConnectionHealth.unconfirmed;
   ConnectionHealth get currentHealth => _currentHealth;
-  // 上层可主动问询健康状态来决定业务
+  // 涓婂眰鍙富鍔ㄩ棶璇㈠仴搴风姸鎬佹潵鍐冲畾涓氬姟
 
   HeartBeat() {
-    // 广播心跳状态
+    // 骞挎挱蹇冭烦鐘舵€?
     _healthStreamController = StreamController<ConnectionHealth>.broadcast();
   }
 
-  // 更新健康状态 状态变化则推送事件
+  // 鏇存柊鍋ュ悍鐘舵€?鐘舵€佸彉鍖栧垯鎺ㄩ€佷簨浠?
   void _setHealth(ConnectionHealth state) {
     if (_currentHealth == state) return;
     _currentHealth = state;
     _healthStreamController.add(state);
   }
 
-  // 异常死亡 清理资源
+  // 寮傚父姝讳骸 娓呯悊璧勬簮
   void markDead() {
     stop();
     _setHealth(ConnectionHealth.dead);
     onConnectDead?.call();
   }
 
-  // 心跳周期 10s
-  static const _heartBeatInterval = Duration(seconds: 10);
-  // 等待 pong 超时 6s
-  static const _pongTimeOut = Duration(seconds: 6);
-  // 连续丢失阈值
-  static const _maxLost = 3;
+  // 心跳周期 5s（网络切换时更快检测死亡）
+  static const _heartBeatInterval = Duration(seconds: 5);
+  // 等待 pong 超时 3s
+  static const _pongTimeOut = Duration(seconds: 3);
+  // 连续丢失阈值 2 次
+  static const _maxLost = 2;
 
   Timer? _heartTimer;
   Timer? _pongWaitTimer;
   int _lostPongCount = 0;
 
-  // 外部回调 内部判断心跳超时 则外部关闭连接
+  // 澶栭儴鍥炶皟 鍐呴儴鍒ゆ柇蹇冭烦瓒呮椂 鍒欏閮ㄥ叧闂繛鎺?
   VoidCallback? onConnectDead;
-  // 外部回调 由外部发送 ping 消息
+  // 澶栭儴鍥炶皟 鐢卞閮ㄥ彂閫?ping 娑堟伅
   Future<bool> Function()? sendPingCallback;
 
-  // 收到任意服务端消息 则重置 丢失统计 并 销毁 pong 等待计时器
+  // 鏀跺埌浠绘剰鏈嶅姟绔秷鎭?鍒欓噸缃?涓㈠け缁熻 骞?閿€姣?pong 绛夊緟璁℃椂鍣?
   void resetHeartBeat() {
     _lostPongCount = 0;
     _pongWaitTimer?.cancel();
 
-    // 收到后端消息 认定链路健康
+    // 鏀跺埌鍚庣娑堟伅 璁ゅ畾閾捐矾鍋ュ悍
     _setHealth(ConnectionHealth.healthy);
   }
 
-  // 正常停止心跳 清理所有计时器
+  // 姝ｅ父鍋滄蹇冭烦 娓呯悊鎵€鏈夎鏃跺櫒
   void stop() {
     _heartTimer?.cancel();
     _pongWaitTimer?.cancel();
     _heartTimer = null;
     _pongWaitTimer = null;
     _lostPongCount = 0;
-    // 上层主动关闭 不需要标记链路死亡
+    // 涓婂眰涓诲姩鍏抽棴 涓嶉渶瑕佹爣璁伴摼璺浜?
   }
 
   void start() {
     stop();
-    // 重新启动心跳 重置链路为未确认状态
+    // 閲嶆柊鍚姩蹇冭烦 閲嶇疆閾捐矾涓烘湭纭鐘舵€?
     _setHealth(ConnectionHealth.unconfirmed);
 
-    // Timer.periodic 周期性定时器 每隔一段时间 重复执行回调 做 心跳轮询
-    // 此类定时器 不会自动停止 需要手动 cancel
+    // Timer.periodic 鍛ㄦ湡鎬у畾鏃跺櫒 姣忛殧涓€娈垫椂闂?閲嶅鎵ц鍥炶皟 鍋?蹇冭烦杞
+    // 姝ょ被瀹氭椂鍣?涓嶄細鑷姩鍋滄 闇€瑕佹墜鍔?cancel
     _heartTimer = Timer.periodic(_heartBeatInterval, (_) async {
       final sendFunc = sendPingCallback;
       if (sendFunc == null) {
@@ -87,22 +87,22 @@ class HeartBeat {
 
       bool sendSuccess = await sendFunc();
       if (!sendSuccess) {
-        // ping 发送失败 认定连接已死亡
-        // 静默断网的情况下 可能需要等待数分钟才会判定连接死亡 具体看 sendFunc 的实现
+        // ping 鍙戦€佸け璐?璁ゅ畾杩炴帴宸叉浜?
+        // 闈欓粯鏂綉鐨勬儏鍐典笅 鍙兘闇€瑕佺瓑寰呮暟鍒嗛挓鎵嶄細鍒ゅ畾杩炴帴姝讳骸 鍏蜂綋鐪?sendFunc 鐨勫疄鐜?
         markDead();
         return;
       }
 
-      // ping 发送成功 不代表链路存活 只是代表消息进入通道
-      // 因此需要一个 pong 定时器来判定连接存活与否 依靠收到服务器应答来判定链路健康
-      // 此定时器在收到任意消息时会被销毁 不标记死亡
+      // ping 鍙戦€佹垚鍔?涓嶄唬琛ㄩ摼璺瓨娲?鍙槸浠ｈ〃娑堟伅杩涘叆閫氶亾
+      // 鍥犳闇€瑕佷竴涓?pong 瀹氭椂鍣ㄦ潵鍒ゅ畾杩炴帴瀛樻椿涓庡惁 渚濋潬鏀跺埌鏈嶅姟鍣ㄥ簲绛旀潵鍒ゅ畾閾捐矾鍋ュ悍
+      // 姝ゅ畾鏃跺櫒鍦ㄦ敹鍒颁换鎰忔秷鎭椂浼氳閿€姣?涓嶆爣璁版浜?
 
       _pongWaitTimer?.cancel();
-      // Timer 一次性定时器 等待指定时长 只执行回调一次 自动 cancel
+      // Timer 涓€娆℃€у畾鏃跺櫒 绛夊緟鎸囧畾鏃堕暱 鍙墽琛屽洖璋冧竴娆?鑷姩 cancel
       _pongWaitTimer = Timer(_pongTimeOut, () {
         _lostPongCount++;
         if (_lostPongCount >= _maxLost) {
-          // 单词轮询内超时未收到 pong 则标记死亡
+          // 鍗曡瘝杞鍐呰秴鏃舵湭鏀跺埌 pong 鍒欐爣璁版浜?
           markDead();
         }
       });

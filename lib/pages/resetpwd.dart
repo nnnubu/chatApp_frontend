@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:chatapp/constants/app_constants.dart';
 import 'package:chatapp/controller/global/theme_controller.dart';
 import 'package:chatapp/service/user_service.dart';
-import 'package:chatapp/utils/check_Input.dart';
+import 'package:chatapp/utils/check_input.dart';
 import 'package:chatapp/utils/show_tip.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -11,9 +11,7 @@ class ResetPwd extends StatefulWidget {
   const ResetPwd({super.key});
 
   @override
-  State<ResetPwd> createState() {
-    return _ResetPwdState();
-  }
+  State<ResetPwd> createState() => _ResetPwdState();
 }
 
 class _ResetPwdState extends State<ResetPwd> {
@@ -49,7 +47,6 @@ class _ResetPwdState extends State<ResetPwd> {
         code.isEmpty) {
       showTipSnackbar(msg: "请先输入表单信息", isSuccess: false);
       _isSubmitting.value = false;
-
       return;
     }
 
@@ -64,7 +61,6 @@ class _ResetPwdState extends State<ResetPwd> {
     }
 
     if (commonState.isSuccess && mounted) {
-      // Navigator.pop(context);
       Get.back();
     }
     showTipSnackbar(msg: commonState.msg, isSuccess: commonState.isSuccess);
@@ -76,7 +72,6 @@ class _ResetPwdState extends State<ResetPwd> {
     String? emailErr = CheckInput.email(email);
     if (emailErr != null) {
       _emailError.value = emailErr;
-
       return;
     }
 
@@ -87,7 +82,6 @@ class _ResetPwdState extends State<ResetPwd> {
 
       _countTimer?.cancel();
       _countTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        // 页面关闭时需要手动停止 因为 Timer 是全局事件 而页面只属于 组件 事件不会因为组件被销毁而停止
         if (!mounted) {
           timer.cancel();
           return;
@@ -96,7 +90,6 @@ class _ResetPwdState extends State<ResetPwd> {
         _countDown.value--;
         if (_countDown.value == 0) {
           timer.cancel();
-
           _emailError.value = CheckInput.email(_emailCtrl.text.trim());
           if (_emailError.value == null) {
             _state.value = 1;
@@ -129,144 +122,199 @@ class _ResetPwdState extends State<ResetPwd> {
 
   @override
   Widget build(BuildContext context) {
-    final AppTheme t = _themeController.currentTheme;
-    return Scaffold(
-      backgroundColor: t.backGroundColor,
-      appBar: AppBar(backgroundColor: const Color.fromARGB(0, 255, 255, 255)),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 80),
-          child: Obx(() {
-            return Column(
+    return Obx(() {
+      final AppTheme t = _themeController.currentTheme;
+      return Scaffold(
+        backgroundColor: t.scaffoldBg,
+        appBar: AppBar(
+          backgroundColor: t.appBarColor,
+          elevation: 0,
+          iconTheme: IconThemeData(color: t.fontColor),
+        ),
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
                   "重置密码",
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
+                  style: t.titleStyle.copyWith(fontSize: 28),
                   textAlign: TextAlign.center,
                 ),
+                const SizedBox(height: 8),
+                Text(
+                  "通过邮箱验证重置密码",
+                  style: t.captionStyle,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
 
-                const SizedBox(height: 40),
-
+                // 邮箱
                 TextFormField(
                   controller: _emailCtrl,
-                  obscureText: false,
+                  style: t.bodyStyle,
                   decoration: InputDecoration(
                     labelText: "邮箱",
+                    labelStyle: t.captionStyle,
                     hintText: "请输入邮箱获取验证码",
+                    hintStyle: t.captionStyle,
                     errorText: _emailError.value,
+                    errorStyle: TextStyle(color: t.errorColor, fontSize: 12),
+                    filled: true,
+                    fillColor: t.inputBgColor,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(t.inputRadius),
+                      borderSide: BorderSide(color: t.dividerColor),
                     ),
-                    prefixIcon: const Icon(Icons.email),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(t.inputRadius),
+                      borderSide: BorderSide(color: t.dividerColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(t.inputRadius),
+                      borderSide: BorderSide(color: t.primaryColor, width: 2),
+                    ),
+                    prefixIcon: Icon(Icons.email, color: t.hintTextColor),
                     suffixIcon: _state.value == 2
                         ? Padding(
-                            padding: const EdgeInsetsGeometry.all(12.0),
-                            child: Text(
-                              "$_countDown s",
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                fontSize: 14,
-                              ),
-                            ),
+                            padding: const EdgeInsets.all(14.0),
+                            child: Text("${_countDown.value}s", style: t.captionStyle),
                           )
                         : IconButton(
                             onPressed: _state.value == 1 ? submitEmail : null,
-                            icon: Icon(Icons.send),
-                            disabledColor: Colors.grey,
+                            icon: Icon(Icons.send, color: t.primaryColor),
+                            disabledColor: t.hintTextColor,
                           ),
                   ),
                   onChanged: (value) {
                     _emailError.value = CheckInput.email(value.trim());
                     if (_state.value != 2) {
-                      if (_emailError.value == null) {
-                        _state.value = 1;
-                      } else {
-                        _state.value = 0;
-                      }
+                      _emailError.value == null
+                          ? _state.value = 1
+                          : _state.value = 0;
                     }
                   },
                 ),
-
                 const SizedBox(height: 12),
 
+                // 验证码
                 TextFormField(
                   controller: _codeCtrl,
                   obscureText: true,
+                  style: t.bodyStyle,
                   decoration: InputDecoration(
                     labelText: "验证码",
+                    labelStyle: t.captionStyle,
                     hintText: "请输入验证码",
+                    hintStyle: t.captionStyle,
                     errorText: _codeError.value,
+                    errorStyle: TextStyle(color: t.errorColor, fontSize: 12),
+                    filled: true,
+                    fillColor: t.inputBgColor,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(t.inputRadius),
+                      borderSide: BorderSide(color: t.dividerColor),
                     ),
-                    prefixIcon: const Icon(Icons.verified),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(t.inputRadius),
+                      borderSide: BorderSide(color: t.dividerColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(t.inputRadius),
+                      borderSide: BorderSide(color: t.primaryColor, width: 2),
+                    ),
+                    prefixIcon: Icon(Icons.verified, color: t.hintTextColor),
                   ),
                   onChanged: (value) {
                     _codeError.value = CheckInput.code(value.trim());
                   },
                 ),
-
                 const SizedBox(height: 12),
 
+                // 新密码
                 TextFormField(
                   controller: _pwdCtrl,
                   obscureText: true,
+                  style: t.bodyStyle,
                   decoration: InputDecoration(
                     labelText: "新密码",
+                    labelStyle: t.captionStyle,
                     hintText: "请输入新密码",
+                    hintStyle: t.captionStyle,
                     errorText: _pwdError.value,
+                    errorStyle: TextStyle(color: t.errorColor, fontSize: 12),
+                    filled: true,
+                    fillColor: t.inputBgColor,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(t.inputRadius),
+                      borderSide: BorderSide(color: t.dividerColor),
                     ),
-                    prefixIcon: const Icon(Icons.key),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(t.inputRadius),
+                      borderSide: BorderSide(color: t.dividerColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(t.inputRadius),
+                      borderSide: BorderSide(color: t.primaryColor, width: 2),
+                    ),
+                    prefixIcon: Icon(Icons.key, color: t.hintTextColor),
                   ),
                   onChanged: (value) {
                     _pwdError.value = CheckInput.password(value);
                   },
                 ),
-
                 const SizedBox(height: 12),
 
-                TextField(
+                // 确认密码
+                TextFormField(
                   controller: _confirmPwdCtrl,
+                  obscureText: true,
+                  style: t.bodyStyle,
                   decoration: InputDecoration(
                     labelText: "确认密码",
-                    hintText: "确认密码",
+                    labelStyle: t.captionStyle,
+                    hintText: "再次输入新密码",
+                    hintStyle: t.captionStyle,
                     errorText: _confirmPwdError.value,
+                    errorStyle: TextStyle(color: t.errorColor, fontSize: 12),
+                    filled: true,
+                    fillColor: t.inputBgColor,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(t.inputRadius),
+                      borderSide: BorderSide(color: t.dividerColor),
                     ),
-                    prefixIcon: const Icon(Icons.confirmation_num),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(t.inputRadius),
+                      borderSide: BorderSide(color: t.dividerColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(t.inputRadius),
+                      borderSide: BorderSide(color: t.primaryColor, width: 2),
+                    ),
+                    prefixIcon: Icon(Icons.confirmation_num, color: t.hintTextColor),
                   ),
-                  obscureText: true,
                   onChanged: (value) {
-                    setState(() {
-                      if (value != _pwdCtrl.text) {
-                        _confirmPwdError.value = "两次密码不一致";
-                      } else {
-                        _confirmPwdError.value = null;
-                      }
-                    });
+                    if (value != _pwdCtrl.text) {
+                      _confirmPwdError.value = "两次密码不一致";
+                    } else {
+                      _confirmPwdError.value = null;
+                    }
                   },
                 ),
+                const SizedBox(height: 24),
 
-                const SizedBox(height: 12),
-
+                // 重置按钮
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(t.buttonRadius),
                     ),
-                    backgroundColor: t.secondColor,
+                    backgroundColor: t.primaryColor,
+                    elevation: 2,
                   ),
-                  onPressed:
-                      _pwdError.value == null &&
+                  onPressed: _pwdError.value == null &&
                           _confirmPwdError.value == null &&
                           _emailError.value == null &&
                           _codeError.value == null &&
@@ -275,26 +323,42 @@ class _ResetPwdState extends State<ResetPwd> {
                       : () {
                           showTipSnackbar(msg: "请先修正表单信息", isSuccess: false);
                         },
-                  child: Text("重置密码", style: TextStyle(fontSize: 18)),
+                  child: _isSubmitting.value
+                      ? SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: t.buttonStyle.color,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text("重置密码", style: t.buttonStyle),
                 ),
+                const SizedBox(height: 16),
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text("已重置？"),
+                    Text("已重置？", style: t.bodyStyle),
                     TextButton(
                       onPressed: () {
-                        // Navigator.pop(context);
                         Get.back();
                       },
-                      child: const Text("去登录"),
+                      child: Text(
+                        "去登录",
+                        style: t.bodyStyle.copyWith(
+                          color: t.primaryColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ],
-            );
-          }),
+            ),
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 }

@@ -1,4 +1,5 @@
 import 'package:chatapp/widgets/message/item_info/base_info.dart';
+import 'package:chatapp/ws/ack_helper.dart';
 import 'package:get/get.dart';
 import 'package:get/get_rx/src/rx_types/rx_types.dart';
 
@@ -11,6 +12,8 @@ class ChatItem extends BaseInfoItem {
   final String? receiverUid; // 消息接收方
   final String? conversationUid; // 隶属会话标识
   bool isInsertToTop; // 是否插入队首
+  String? requestId; // 前端发送时生成，用于 ACK 追踪（重发时会更新）
+  final Rx<AckStatus> sendStatus; // 消息发送状态
 
   ChatItem({
     required super.uid,
@@ -22,6 +25,9 @@ class ChatItem extends BaseInfoItem {
     this.conversationUid,
     this.content,
     this.isInsertToTop = false,
+    this.requestId,
+    AckStatus sendStatus = AckStatus.success,
     int unReadCount = 1,
-  }) : unReadCount = unReadCount.obs;
+  })  : unReadCount = unReadCount.obs,
+        sendStatus = sendStatus.obs;
 }

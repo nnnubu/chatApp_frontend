@@ -20,29 +20,50 @@ class Login extends StatefulWidget {
   }
 }
 
-class _Login extends State<Login> {
+class _Login extends State<Login> with SingleTickerProviderStateMixin {
   late final UserController userController;
-  late final AppTheme theme;
+  late final ThemeController themeController;
   late final TextEditingController _emailCtrl;
   late final TextEditingController _pwdCtrl;
+  late final AnimationController _animController;
+  late final Animation<double> _fadeAnim;
+  late final Animation<Offset> _slideAnim;
 
   final RxBool _isSubmitting = false.obs;
   final RxnString _emailError = RxnString();
   final RxnString _pwdError = RxnString();
+  final RxBool _obscurePwd = true.obs;
 
   @override
   void initState() {
     super.initState();
     userController = Get.find<UserController>();
-    theme = Get.find<ThemeController>().currentTheme;
+    themeController = Get.find<ThemeController>();
     _emailCtrl = TextEditingController();
     _pwdCtrl = TextEditingController();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _fadeAnim = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOut,
+    );
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOutCubic,
+    ));
+    _animController.forward();
   }
 
   @override
   void dispose() {
     _emailCtrl.dispose();
     _pwdCtrl.dispose();
+    _animController.dispose();
     super.dispose();
   }
 
@@ -80,12 +101,6 @@ class _Login extends State<Login> {
         // 注册消息分发器
         MessageDispatcher.instance.registerHandler(DefaultMessageHandlers);
       }
-      // 异步等待的间隙，用户可能会退出页面，因此后续的操作如果涉及context，就需要进行mounted判断
-      // if (!mounted) return;
-      // Navigator.pushReplacement(
-      //   context,
-      //   MaterialPageRoute(builder: (context) => Home()),
-      // );
       Get.offAllNamed("/home");
     }
 
@@ -94,140 +109,241 @@ class _Login extends State<Login> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: theme.backGroundColor,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.symmetric(
-            horizontal: 24, //水平
-            vertical: 80, //垂直
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            // Column 的主轴是垂直方向。crossAxis即为交叉轴，也就是在水平方向 stretch 拉伸填满父组件
-            children: [
-              const Text(
-                "登录",
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-                textAlign: TextAlign.center,
-              ),
+    return Obx(() {
+      final AppTheme theme = themeController.currentTheme;
 
-              const SizedBox(height: 40),
-
-              Obx(() {
-                return TextFormField(
-                  controller: _emailCtrl,
-                  keyboardType: TextInputType.text,
-                  decoration: InputDecoration(
-                    labelText: "邮箱",
-                    hintText: "请输入邮箱",
-                    errorText: _emailError.value,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+      return Scaffold(
+        backgroundColor: theme.scaffoldBg,
+        body: SafeArea(
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: SlideTransition(
+              position: _slideAnim,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 40),
+                    // Logo 区域
+                    Center(
+                      child: Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              theme.primaryColor,
+                              theme.primaryColor.withOpacity(0.7),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: theme.primaryColor.withOpacity(0.3),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.chat_bubble_outline,
+                          size: 40,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
-                    prefixIcon: const Icon(Icons.person),
-                  ),
-                  onChanged: (value) {
-                    _emailError.value = CheckInput.email(value.trim());
-                  },
-                );
-              }),
-
-              const SizedBox(height: 12),
-
-              Obx(() {
-                return TextFormField(
-                  controller: _pwdCtrl,
-                  obscureText: true, //是否可见
-                  decoration: InputDecoration(
-                    labelText: "密码",
-                    hintText: "请输入密码",
-                    errorText: _pwdError.value,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    const SizedBox(height: 24),
+                    Text(
+                      "欢迎回来",
+                      style: theme.titleStyle.copyWith(fontSize: 28),
+                      textAlign: TextAlign.center,
                     ),
-                    prefixIcon: const Icon(Icons.key),
-                  ),
-                  onChanged: (value) {
-                    _pwdError.value = CheckInput.password(value);
-                  },
-                );
-              }),
+                    const SizedBox(height: 8),
+                    Text(
+                      "登录以继续使用",
+                      style: theme.captionStyle.copyWith(fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 40),
 
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {
-                    // Navigator.push(
-                    //   context,
-                    //   MaterialPageRoute(
-                    //     builder: (context) =>
-                    //         RegisterOrResetPwd(isResetPassword: true),
-                    //   ),
-
-                    // );
-                    Get.toNamed("/resetPwd");
-                  },
-                  child: const Text("忘记密码？"),
-                ),
-              ),
-
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  backgroundColor: theme.secondColor,
-                ),
-                onPressed:
-                    _emailError.value == null &&
-                        _pwdError.value == null &&
-                        !_isSubmitting.value
-                    ? submitLogin
-                    : () {
-                        showTipSnackbar(msg: "请先修正表单信息", isSuccess: false);
-                      },
-                child: Builder(
-                  builder: (context) {
-                    if (_isSubmitting.value) {
-                      return CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
+                    // 邮箱输入框
+                    Obx(() {
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: theme.inputBgColor,
+                          borderRadius: BorderRadius.circular(theme.inputRadius),
+                          border: Border.all(
+                            color: _emailError.value != null
+                                ? theme.errorColor
+                                : theme.dividerColor,
+                            width: 1,
+                          ),
+                        ),
+                        child: TextFormField(
+                          controller: _emailCtrl,
+                          keyboardType: TextInputType.emailAddress,
+                          style: theme.bodyStyle,
+                          decoration: InputDecoration(
+                            labelText: "邮箱",
+                            hintText: "请输入邮箱",
+                            errorText: _emailError.value,
+                            errorStyle: TextStyle(color: theme.errorColor, fontSize: 12),
+                            prefixIcon: Icon(Icons.email_outlined, color: theme.hintTextColor),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          ),
+                          onChanged: (value) {
+                            _emailError.value = CheckInput.email(value.trim());
+                          },
+                        ),
                       );
-                    }
-                    return const Text("登录", style: TextStyle(fontSize: 18));
-                  },
+                    }),
+
+                    const SizedBox(height: 16),
+
+                    // 密码输入框
+                    Obx(() {
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: theme.inputBgColor,
+                          borderRadius: BorderRadius.circular(theme.inputRadius),
+                          border: Border.all(
+                            color: _pwdError.value != null
+                                ? theme.errorColor
+                                : theme.dividerColor,
+                            width: 1,
+                          ),
+                        ),
+                        child: TextFormField(
+                          controller: _pwdCtrl,
+                          obscureText: _obscurePwd.value,
+                          style: theme.bodyStyle,
+                          decoration: InputDecoration(
+                            labelText: "密码",
+                            hintText: "请输入密码",
+                            errorText: _pwdError.value,
+                            errorStyle: TextStyle(color: theme.errorColor, fontSize: 12),
+                            prefixIcon: Icon(Icons.lock_outline, color: theme.hintTextColor),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePwd.value
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                                color: theme.hintTextColor,
+                                size: 20,
+                              ),
+                              onPressed: () => _obscurePwd.value = !_obscurePwd.value,
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          ),
+                          onChanged: (value) {
+                            _pwdError.value = CheckInput.password(value);
+                          },
+                        ),
+                      );
+                    }),
+
+                    const SizedBox(height: 8),
+
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () {
+                          Get.toNamed("/resetPwd");
+                        },
+                        child: Text("忘记密码？", style: TextStyle(color: theme.primaryColor, fontSize: 13)),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // 登录按钮
+                    Obx(() {
+                      final canSubmit = _emailError.value == null &&
+                          _pwdError.value == null &&
+                          !_isSubmitting.value;
+                      return GestureDetector(
+                        onTap: canSubmit
+                            ? submitLogin
+                            : () {
+                                showTipSnackbar(msg: "请先修正表单信息", isSuccess: false);
+                              },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          height: 52,
+                          decoration: BoxDecoration(
+                            gradient: canSubmit
+                                ? LinearGradient(
+                                    colors: [
+                                      theme.primaryColor,
+                                      theme.primaryColor.withOpacity(0.85),
+                                    ],
+                                  )
+                                : null,
+                            color: canSubmit ? null : theme.hintTextColor.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(theme.buttonRadius),
+                            boxShadow: canSubmit
+                                ? [
+                                    BoxShadow(
+                                      color: theme.primaryColor.withOpacity(0.4),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Center(
+                            child: _isSubmitting.value
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2.5,
+                                    ),
+                                  )
+                                : Text(
+                                    "登录",
+                                    style: theme.buttonStyle.copyWith(fontSize: 16),
+                                  ),
+                          ),
+                        ),
+                      );
+                    }),
+
+                    const SizedBox(height: 24),
+
+                    // 注册入口
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text("还没有账号？", style: theme.bodyStyle.copyWith(fontSize: 14)),
+                        TextButton(
+                          onPressed: () {
+                            Get.toNamed("/register");
+                          },
+                          child: Text(
+                            "去注册",
+                            style: TextStyle(
+                              color: theme.primaryColor,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text("还没有账号？"),
-                  TextButton(
-                    onPressed: () {
-                      // Navigator.push(
-                      //   context,
-                      //   MaterialPageRoute(
-                      //     builder: (context) => RegisterOrResetPwd(),
-                      //   ),
-                      // );
-
-                      Get.toNamed("/register");
-                    },
-                    child: const Text("去注册"),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
-      ),
-    );
+      );
+    });
   }
 }

@@ -133,8 +133,9 @@ class _FriendApplyCardState extends State<FriendApplyCard> {
           color: bgColor,
           duration: const Duration(milliseconds: 800),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              // 头像
               GestureDetector(
                 onTap: () {
                   Get.to(() => StrangerPreview(targetUid: info.uid));
@@ -142,97 +143,98 @@ class _FriendApplyCardState extends State<FriendApplyCard> {
                 child: Container(
                   width: AppBase.messageCardAvatarRadius,
                   height: AppBase.messageCardAvatarRadius,
-                  margin: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    color: Colors.white30,
-                    border: Border.all(color: Colors.black, width: 2),
-                    borderRadius: BorderRadius.circular(5),
+                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  clipBehavior: Clip.hardEdge,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
                   ),
                   child: Image.network(
                     buildStaticUrl(info.avatarUrl),
                     fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: t.thirdColor,
+                      child: Icon(Icons.person, color: t.hintTextColor),
+                    ),
                   ),
                 ),
               ),
 
+              // 文字内容
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Stack(
+                  padding: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            info.nickname,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          Text(
-                            info.lastContent,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.black54,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-
-                      Positioned(
-                        right: 10,
-                        top: 0,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            if (type == MessageType.addFriend)
-                              Icon(
-                                Icons.person_add_rounded,
-                                size: 25,
-                                color: Colors.deepOrange,
-                              )
-                            else if (type == MessageType.refuse)
-                              Icon(
-                                Icons.person_add_disabled_rounded,
-                                size: 25,
-                                color: Colors.black,
-                              ),
-
-                            if (info.unReadCount > 0)
-                              Container(
-                                height: 19,
-                                width: 19,
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    "${info.unReadCount > 99 ? "99+" : info.unReadCount}",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
+                      Text(
+                        info.nickname,
+                        style: t.bodyStyle.copyWith(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        info.lastContent,
+                        style: t.captionStyle.copyWith(fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
+                ),
+              ),
+
+              // 右侧图标和未读计数
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (type == MessageType.addFriend)
+                      Icon(
+                        Icons.person_add_rounded,
+                        size: 20,
+                        color: t.primaryColor,
+                      )
+                    else if (type == MessageType.refuse)
+                      Icon(
+                        Icons.person_add_disabled_rounded,
+                        size: 20,
+                        color: t.hintTextColor,
+                      ),
+                    if (info.unReadCount > 0)
+                      Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        height: 18,
+                        constraints: const BoxConstraints(minWidth: 18),
+                        padding: const EdgeInsets.symmetric(horizontal: 5),
+                        decoration: BoxDecoration(
+                          color: t.errorColor,
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: Center(
+                          child: Text(
+                            "${info.unReadCount > 99 ? "99+" : info.unReadCount}",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
         shellOnTap: () async {
-          // debugPrint("跳转聊天界面");
           info.unReadCount.value = 0;
           markRead(isReceiver, type, info);
         },

@@ -11,8 +11,9 @@ import 'package:get/get.dart';
 class ChatCard extends StatefulWidget {
   final ChatItem item;
   final VoidCallback onDelete;
+  final bool autoSlideBack;
 
-  const ChatCard({super.key, required this.item, required this.onDelete});
+  const ChatCard({super.key, required this.item, required this.onDelete, this.autoSlideBack = false});
 
   @override
   State<ChatCard> createState() {
@@ -90,17 +91,11 @@ class _ChatCardState extends State<ChatCard> {
                         children: [
                           Text(
                             info.nickname,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
+                            style: t.bodyStyle.copyWith(fontWeight: FontWeight.w500),
                           ),
                           Text(
                             info.content ?? "",
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.black54,
-                            ),
+                            style: t.captionStyle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -147,6 +142,7 @@ class _ChatCardState extends State<ChatCard> {
           Get.to(() => ChatPage(),arguments: info);
         },
         needReset: needResetSlide.value,
+        autoSlideBack: widget.autoSlideBack,
       );
     });
   }

@@ -182,4 +182,12 @@ class UserApi {
     Response res = await DioUtil.dio.post("auth/markReadStatus",data: {"conversationUid" : conversationUid});
     return res.data as Map<String,dynamic>?;
   }
+
+  static Future<Map<String, dynamic>?> searchFriends(String keyword) async {
+    Response res = await DioUtil.dio.get(
+      "auth/searchFriends",
+      queryParameters: {"keyword": keyword},
+    );
+    return res.data as Map<String, dynamic>?;
+  }
 }

@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:collection';
 import 'package:chatapp/api/config.dart';
 import 'package:chatapp/constants/app_constants.dart';
@@ -37,7 +37,7 @@ class WebSocketService {
     _healthSub = _heartBeat.healthStream.listen((health) {
       if (health == ConnectionHealth.healthy) {
         debugPrint("链路双向通信验证成功，重置重连退避时长与可用重连次数");
-        _reconnectDelay = const Duration(seconds: 2);
+        _reconnectDelay = const Duration(seconds: 1);
         _availableReconnectCount = 5;
         _allowReconnect = true;
         autoReconnectExhausted.value = false;
@@ -47,24 +47,29 @@ class WebSocketService {
       unawaited(_startConsumeOutGoing());
     });
 
-    _ackRespSub = _ackHelper.ackRespStream.listen((resp) {
+    _ackRespSub = ackHelper.ackRespStream.listen((resp) {
       try {
-        if (resp.ackStatus == AckStatus.failed) {
-          // 消息发送失败则重新入队
-          final MessageDto? failedMsg = resp.dto;
-          if (failedMsg == null) return;
-          debugPrint(
-            "消息：${resp.requestId} 发送失败，已重新入队 当前消费队列长度 ${_outGoingQueue.length}",
-          );
-          _outGoingQueue.add(failedMsg);
-          unawaited(_startConsumeOutGoing());
+        if (resp.ackStatus == AckStatus.retry) {
+          // ACK 超时，自动重试：将消息重新加入队列
+          if (resp.dto != null) {
+            // 先移除队列中相同 requestId 的旧消息，避免队列越积越多
+            // 连接不正常时消息不会被消费出队，每次重试都会残留一份
+            _outGoingQueue.removeWhere((e) => e.requestId == resp.dto!.requestId);
+            _outGoingQueue.add(resp.dto!);
+            unawaited(_startConsumeOutGoing());
+          }
           return;
         } else if (resp.ackStatus == AckStatus.roamed) {
+          // 重试次数用尽，消息被流放，聊天页面会显示感叹号
           debugPrint("消息已被流放 requestId:${resp.requestId}");
-          debugPrint("漫游队列长度：${_ackHelper.roamedMsgList.length}");
-          unawaited(_startConsumeOutGoing());
+          debugPrint("漫游队列长度：${ackHelper.roamedMsgList.length}");
+          return;
+        } else if (resp.ackStatus == AckStatus.failed) {
+          // 保留兼容，实际不再触发（超时后自动重试或流放）
+          debugPrint("消息：${resp.requestId} 发送失败");
           return;
         }
+        // success：消费成功，继续消费下一条
         debugPrint("消费成功 requestId:${resp.requestId}");
         unawaited(_startConsumeOutGoing());
       } catch (e, stack) {
@@ -80,10 +85,16 @@ class WebSocketService {
   late final HeartBeat _heartBeat = HeartBeat();
 
   late final StreamSubscription<AckResponse> _ackRespSub;
-  late final AckHelper _ackHelper = AckHelper();
+  late final AckHelper ackHelper = AckHelper();
 
   WebSocketStatus get status => _connector.status;
   String get baseUrl => "${ApiConfig.wsUrl}/ws/connect";
+  /// 链路是否可发送消息（连接正常+后端就绪+心跳健康）
+  bool get canSend =>
+      _connector.status == WebSocketStatus.connected &&
+      backendReady.value &&
+      _heartBeat.currentHealth != ConnectionHealth.dead;
+
   bool _initedInternalListener = false;
   String token = Get.find<UserController>().token;
 
@@ -92,9 +103,9 @@ class WebSocketService {
   // 重连定时器 防并发重连
   Timer? _reconnectTimer;
   // 当前重连等待间隔 使用指数退避
-  Duration _reconnectDelay = const Duration(seconds: 2);
+  Duration _reconnectDelay = const Duration(seconds: 1);
   // 最大重连间隔
-  static const Duration _maxReconnectDelay = Duration(seconds: 16);
+  static const Duration _maxReconnectDelay = Duration(seconds: 8);
   // 可用重连次数
   int _availableReconnectCount = 5;
   // 重连次数耗尽与否 用于用户手动重连
@@ -103,11 +114,13 @@ class WebSocketService {
   final RxBool isManuallyReconnecting = false.obs;
 
   // 后端业务层是否就绪（收到 ready）
-  bool _backendReady = false;
+  final RxBool backendReady = false.obs;
+  // 心跳链路健康状态
+  final Rx<ConnectionHealth> connectionHealth = ConnectionHealth.unconfirmed.obs;
   // 等待就绪信号的计时器
   Timer? _waitReadyTimer;
   // 等待就绪最大时长
-  static const _waitReadyTimeout = Duration(seconds: 5);
+  static const _waitReadyTimeout = Duration(seconds: 3);
 
   Future<void> connect(String token) async {
     // 建立连接 则开启自动重连权限 并重置连接耗尽标记
@@ -120,7 +133,7 @@ class WebSocketService {
           if (event.status == WebSocketStatus.connected) {
             debugPrint("底层 WebSocket 通道建立成功，等待后端 ready 就绪通知");
             // 标记后端尚未就绪
-            _backendReady = false;
+            backendReady.value = false;
             // 销毁上一个计时器 并启动新的计时器
             _waitReadyTimer?.cancel();
             _waitReadyTimer = Timer(_waitReadyTimeout, () async {
@@ -131,7 +144,7 @@ class WebSocketService {
               event.status == WebSocketStatus.error) {
             // 连接断开 或 异常 停止心跳
             _waitReadyTimer?.cancel();
-            _backendReady = false;
+            backendReady.value = false;
             _heartBeat.stop();
 
             if (_allowReconnect) {
@@ -142,7 +155,7 @@ class WebSocketService {
           if (event.dto.msgType == MessageType.ready) {
             debugPrint("后端 ready 允许正常通信");
             _waitReadyTimer?.cancel();
-            _backendReady = true;
+            backendReady.value = true;
             // 后端就绪 启动心跳
             _heartBeat.start();
             // 唤醒发送队列补发积压消息
@@ -156,7 +169,7 @@ class WebSocketService {
             _heartBeat.resetHeartBeat();
             return;
           } else if (event.dto.msgType == MessageType.ack) {
-            _ackHelper.onReciveAck(event.dto);
+            ackHelper.onReciveAck(event.dto);
             return;
           }
           _heartBeat.resetHeartBeat();
@@ -176,7 +189,7 @@ class WebSocketService {
   // 外部主动调用 即 用户主动断开连接
   Future<void> disConnect() async {
     _waitReadyTimer?.cancel();
-    _backendReady = false;
+    backendReady.value = false;
     // 主动断开 禁止后续自动重连
     _allowReconnect = false;
     autoReconnectExhausted.value = false;
@@ -191,7 +204,7 @@ class WebSocketService {
   // 异常关闭通道 心跳死亡 连接异常使用 可重连
   Future<void> _forceCloseConnection() async {
     _waitReadyTimer?.cancel();
-    _backendReady = false;
+    backendReady.value = false;
     _heartBeat.stop();
 
     await _connector.forceCloseInternal();
@@ -235,8 +248,30 @@ class WebSocketService {
     isManuallyReconnecting.value = true;
     _availableReconnectCount = 5;
     autoReconnectExhausted.value = false;
-    _reconnectDelay = const Duration(seconds: 2);
-    await connect(token);
+    _reconnectDelay = const Duration(seconds: 1);
+
+    // 取消正在运行的自动重连定时器，避免冲突
+    _clearReconnectTimer();
+
+    try {
+      // 临时禁止自动重连，避免 forceCloseInternal 触发自动重连
+      _allowReconnect = false;
+
+      // 关键：如果已有连接或正在连接，先强制关闭旧连接
+      // 否则 connect 会因"连接已存在"直接返回，导致 ready 超时死循环
+      if (_connector.status == WebSocketStatus.connected ||
+          _connector.status == WebSocketStatus.connecting) {
+        await _connector.forceCloseInternal();
+      }
+
+      // connect 内部会设置 _allowReconnect = true
+      await connect(token);
+      // 不在此处重置 isManuallyReconnecting
+      // 由心跳健康（连接成功）或重连耗尽（连接失败）时重置
+    } catch (e, stack) {
+      debugPrint("手动重连异常：$e\n$stack");
+      isManuallyReconnecting.value = false;
+    }
   }
 
   // 清理重连定时器
@@ -254,18 +289,38 @@ class WebSocketService {
     if (dto.msgType == MessageType.heartBeat) {
       return _connector.send(dto);
     }
+    // 去重检查：如果相同 requestId 的消息已经在队列中，不重复加入
+    final requestId = dto.requestId;
+    if (requestId != null) {
+      // 检查是否已在发送队列中
+      final inQueue = _outGoingQueue.any((e) => e.requestId == requestId);
+      if (inQueue) {
+        debugPrint("消息：$requestId 已在发送队列中，不重复加入");
+        return false;
+      }
+    }
+    // 入队时即注册 ACK 监听（即使链路断开也会启动计时器）
+    // 这样即使消息没被消费，也会超时→重试→流放，不会永远转圈
+    if (requestId != null) ackHelper.addPendingId(dto);
     _outGoingQueue.add(dto);
     _startConsumeOutGoing();
     return true;
   }
 
+  /// 从发送队列中移除指定 requestId 的消息，避免重发时重复发送
+  void removeFromQueue(String? requestId) {
+    if (requestId == null) return;
+    _outGoingQueue.removeWhere((e) => e.requestId == requestId);
+  }
+
   Future<void> _startConsumeOutGoing() async {
     if (_isConsuming) return;
     _isConsuming = true;
+    bool consumedAny = false; // 记录本次是否真正消费过消息
     try {
       while (_outGoingQueue.isNotEmpty) {
         if (_connector.status != WebSocketStatus.connected ||
-            !_backendReady ||
+            !backendReady.value ||
             _heartBeat.currentHealth == ConnectionHealth.dead) {
           debugPrint("通道异常 / 后端未就绪 / 链路死亡，暂停发送，消息保留队列");
           debugPrint("消息保留，当前队列长度：${_outGoingQueue.length}");
@@ -274,13 +329,24 @@ class WebSocketService {
 
         final dto = _outGoingQueue.first;
         final requestId = dto.requestId;
-        // 注册 ack 追踪
-        _ackHelper.addPendingId(dto);
+
+        // 去重检查：如果消息已经真正发送过且正在等待ACK，跳过避免重复发送
+        // sent=false 的消息（如刚入队或超时重试）允许继续发送
+        if (requestId != null &&
+            ackHelper.isSent(requestId) &&
+            ackHelper.isRequestPending(requestId)) {
+          debugPrint("消息：$requestId 已发送且等待ACK，跳过重复发送");
+          _outGoingQueue.removeFirst();
+          continue;
+        }
+
+        // 注册 ack 追踪（入队时已注册，这里处理 retry 状态的重置）
+        ackHelper.addPendingId(dto);
         // 注册完毕正常情况下 是 pending  isRequestRoamed 结果为 false 可以继续发送
         // 若内部判定超过限次 则回删除该 dto 所注册的 key 此时 isRequestRoamed 结果为 true 不可继续发送
         bool isRoamed = false;
         if (requestId != null) {
-          isRoamed = _ackHelper.isRequestRoamed(requestId);
+          isRoamed = ackHelper.isRequestRoamed(requestId);
         }
         if (isRoamed) {
           _outGoingQueue.removeFirst();
@@ -298,10 +364,18 @@ class WebSocketService {
           _outGoingQueue.add(dto);
           break;
         }
+        // 标记消息已经真正发送过，避免重复发送
+        ackHelper.markAsSent(requestId);
+        consumedAny = true;
         await Future.delayed(const Duration(milliseconds: 30));
       }
     } finally {
       _isConsuming = false;
+      // 只有本次真正消费过消息且队列还有剩余时，才触发下一轮
+      // 避免链路异常 break 时无限递归
+      if (consumedAny && _outGoingQueue.isNotEmpty) {
+        unawaited(_startConsumeOutGoing());
+      }
     }
   }
 
@@ -311,7 +385,7 @@ class WebSocketService {
     _healthSub.cancel();
     _eventSub.cancel();
     _ackRespSub.cancel();
-    _ackHelper.dispose();
+    ackHelper.dispose();
     _heartBeat.dispose();
     _connector.dispose();
   }

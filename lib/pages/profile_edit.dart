@@ -205,13 +205,13 @@ class _ProfileEditState extends State<ProfileEdit>
     double safeTop = DeviceSize.instance.statusBarHeight;
     AppTheme t = _themeController.currentTheme;
     return Scaffold(
-      backgroundColor: t.backGroundColor,
+      backgroundColor: t.scaffoldBg,
       resizeToAvoidBottomInset: true,
-      // SingleChildScrollView 单组件纵向滚动容器
-      // 当内部子组件总高度 > 屏幕可视高度时，允许用户上下滑动查看全部内容 例如 键盘弹出的情况
-      body: SingleChildScrollView(
-        physics: AlwaysScrollableScrollPhysics(),
-        child: Stack(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Stack(
           children: [
             Column(
               children: [
@@ -224,92 +224,77 @@ class _ProfileEditState extends State<ProfileEdit>
                       Positioned.fill(
                         child: Hero(
                           tag: "bgImg",
-                          // 自定义跨页面共享元素飞行过渡的中间动画画面
                           flightShuttleBuilder:
                               (
-                                BuildContext flightContext, // 动画独立上下文
-                                Animation<double>
-                                animation, // 动画进度 0 ~ 1，全程永远从0走到1
-                                HeroFlightDirection
-                                flightDirection, // 区分前进/返回两种飞行方向
-                                BuildContext
-                                fromHeroContext, // 来源页面Hero的组件上下文（上一页）
-                                BuildContext
-                                toHeroContext, // 目标页面Hero的组件上下文（下一页）
-                              ) {
-                                // 自定义过渡动画组件，该组件在动画结束之后会自动销毁
-                                return AnimatedBuilder(
-                                  animation: animation,
-                                  builder: (context, child) {
-                                    double currentStop;
-                                    if (flightDirection ==
-                                        HeroFlightDirection.push) {
-                                      // 前进：涨潮 stop 1.0 → 0.6
-                                      currentStop =
-                                          1.0 - (animation.value * (1.0 - 0.6));
-                                    } else {
-                                      // 返回：退潮 stop 0.6 → 1.0
-                                      currentStop =
-                                          0.6 +
-                                          (1 - animation.value) * (1.0 - 0.6);
-                                    }
-                                    // ShaderMask : 蒙版容器组件，可以直接修改子组件自身的像素透明度
-
-                                    return ShaderMask(
-                                      shaderCallback: (Rect bounds) {
-                                        return LinearGradient(
-                                          begin: shaderBegin,
-                                          end: shaderEnd,
-                                          colors: const [
-                                            shaderOpaqueWhite,
-                                            shaderTransparent,
-                                          ],
-                                          stops: [
-                                            currentStop,
-                                            1.0,
-                                          ], // 动态随动画改变淡化起点
-                                        ).createShader(bounds);
-                                      },
-                                      blendMode: BlendMode.dstIn,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: Colors.black54,
-                                        ),
-                                        child: Obx(() {
-                                          return Image.network(
-                                            buildStaticUrl(
-                                              _userController.bgImg.url,
-                                            ),
-                                            cacheHeight:
-                                                _userController.bgImg.thumbH,
-                                            cacheWidth:
-                                                _userController.bgImg.thumbW,
-                                            fit: BoxFit.cover,
-                                            errorBuilder:
-                                                (context, error, stack) {
-                                                  return Container(
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.grey,
-                                                    ),
-                                                    child: Icon(Icons.error),
-                                                  );
-                                                },
-                                          );
-                                        }),
-                                      ),
-                                    );
+                            BuildContext flightContext,
+                            Animation<double> animation,
+                            HeroFlightDirection flightDirection,
+                            BuildContext fromHeroContext,
+                            BuildContext toHeroContext,
+                          ) {
+                            return AnimatedBuilder(
+                              animation: animation,
+                              builder: (context, child) {
+                                double currentStop;
+                                if (flightDirection ==
+                                    HeroFlightDirection.push) {
+                                  currentStop =
+                                      1.0 - (animation.value * (1.0 - 0.6));
+                                } else {
+                                  currentStop =
+                                      0.6 +
+                                      (1 - animation.value) * (1.0 - 0.6);
+                                }
+                                return ShaderMask(
+                                  shaderCallback: (Rect bounds) {
+                                    return LinearGradient(
+                                      begin: shaderBegin,
+                                      end: shaderEnd,
+                                      colors: const [
+                                        shaderOpaqueWhite,
+                                        shaderTransparent,
+                                      ],
+                                      stops: [currentStop, 1.0],
+                                    ).createShader(bounds);
                                   },
+                                  blendMode: BlendMode.dstIn,
+                                  child: Container(
+                                    decoration: const BoxDecoration(
+                                      color: Colors.black54,
+                                    ),
+                                    child: Obx(() {
+                                      return Image.network(
+                                        buildStaticUrl(
+                                          _userController.bgImg.url,
+                                        ),
+                                        cacheHeight:
+                                            _userController.bgImg.thumbH,
+                                        cacheWidth:
+                                            _userController.bgImg.thumbW,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stack) {
+                                              return Container(
+                                                decoration: const BoxDecoration(
+                                                  color: Colors.grey,
+                                                ),
+                                                child: const Icon(Icons.error),
+                                              );
+                                            },
+                                      );
+                                    }),
+                                  ),
                                 );
                               },
+                            );
+                          },
                           child: ShaderMask(
                             shaderCallback: (Rect bounds) {
-                              // Rect 对象 代表当前 child 组件的矩形尺寸、坐标范围（宽高、上下左右边界）
-                              // createShader 创建并返回 Shader 着色器
                               return _bgImgGradient.createShader(bounds);
                             },
                             blendMode: BlendMode.dstIn,
                             child: Container(
-                              decoration: BoxDecoration(color: Colors.black54),
+                              decoration: const BoxDecoration(color: Colors.black54),
                               child: Obx(() {
                                 return Image.network(
                                   buildStaticUrl(_userController.bgImg.url),
@@ -318,10 +303,10 @@ class _ProfileEditState extends State<ProfileEdit>
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stack) {
                                     return Container(
-                                      decoration: BoxDecoration(
+                                      decoration: const BoxDecoration(
                                         color: Colors.grey,
                                       ),
-                                      child: Icon(Icons.error),
+                                      child: const Icon(Icons.error),
                                     );
                                   },
                                 );
@@ -339,7 +324,7 @@ class _ProfileEditState extends State<ProfileEdit>
                               child: Container(
                                 height: _bgImgHeight / 2,
                                 clipBehavior: Clip.hardEdge,
-                                decoration: BoxDecoration(
+                                decoration: const BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: Colors.black54,
                                 ),
@@ -351,10 +336,10 @@ class _ProfileEditState extends State<ProfileEdit>
                                     fit: BoxFit.cover,
                                     errorBuilder: (context, error, stack) {
                                       return Container(
-                                        decoration: BoxDecoration(
+                                        decoration: const BoxDecoration(
                                           color: Colors.grey,
                                         ),
-                                        child: Icon(Icons.error),
+                                        child: const Icon(Icons.error),
                                       );
                                     },
                                   );
@@ -366,7 +351,7 @@ class _ProfileEditState extends State<ProfileEdit>
                               child: Container(
                                 height: _bgImgHeight / 2,
                                 clipBehavior: Clip.hardEdge,
-                                decoration: BoxDecoration(
+                                decoration: const BoxDecoration(
                                   color: Colors.black38,
                                   shape: BoxShape.circle,
                                 ),
@@ -375,7 +360,7 @@ class _ProfileEditState extends State<ProfileEdit>
                                       updateImage(uploadType: "avatar"),
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
+                                    children: const [
                                       Icon(
                                         Icons.camera_alt,
                                         color: Colors.white,
@@ -401,148 +386,220 @@ class _ProfileEditState extends State<ProfileEdit>
                 ),
 
                 Container(
-                  padding: EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    // color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                  padding: const EdgeInsets.all(20),
                   child: Obx(() {
                     return Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        TextFormField(
-                          obscureText: false,
-                          controller: _nickCtrl,
-                          decoration: InputDecoration(
-                            labelText: "昵称",
-                            hintText: "请输入昵称",
-                            errorText: _nickError.value,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                        // 昵称
+                        Container(
+                          decoration: BoxDecoration(
+                            color: t.inputBgColor,
+                            borderRadius: BorderRadius.circular(t.inputRadius),
+                            border: Border.all(
+                              color: _nickError.value != null ? t.errorColor : t.dividerColor,
+                              width: 1,
                             ),
                           ),
-                          onChanged: (value) {
-                            _nickError.value = CheckInput.nickname(
-                              value.trim(),
-                            );
-                          },
+                          child: TextFormField(
+                            controller: _nickCtrl,
+                            style: t.bodyStyle,
+                            decoration: InputDecoration(
+                              labelText: "昵称",
+                              hintText: "请输入昵称",
+                              errorText: _nickError.value,
+                              errorStyle: TextStyle(color: t.errorColor, fontSize: 12),
+                              prefixIcon: Icon(Icons.person_outline, color: t.hintTextColor, size: 20),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            ),
+                            onChanged: (value) {
+                              _nickError.value = CheckInput.nickname(value.trim());
+                            },
+                          ),
                         ),
 
-                        SizedBox(height: 12),
+                        const SizedBox(height: 14),
 
-                        TextFormField(
-                          obscureText: false,
-                          controller: _introCtrl,
-                          decoration: InputDecoration(
-                            labelText: "简介",
-                            hintText: "请输入简介",
-                            errorText: _introError.value,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                        // 简介
+                        Container(
+                          decoration: BoxDecoration(
+                            color: t.inputBgColor,
+                            borderRadius: BorderRadius.circular(t.inputRadius),
+                            border: Border.all(
+                              color: _introError.value != null ? t.errorColor : t.dividerColor,
+                              width: 1,
                             ),
                           ),
-                          onChanged: (value) {
-                            _introError.value = CheckInput.intro(value);
-                          },
+                          child: TextFormField(
+                            controller: _introCtrl,
+                            maxLines: 3,
+                            style: t.bodyStyle,
+                            decoration: InputDecoration(
+                              labelText: "简介",
+                              hintText: "请输入简介",
+                              errorText: _introError.value,
+                              errorStyle: TextStyle(color: t.errorColor, fontSize: 12),
+                              prefixIcon: Icon(Icons.edit_outlined, color: t.hintTextColor, size: 20),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            ),
+                            onChanged: (value) {
+                              _introError.value = CheckInput.intro(value);
+                            },
+                          ),
                         ),
 
-                        SizedBox(height: 12),
+                        const SizedBox(height: 14),
 
-                        TextFormField(
-                          obscureText: false,
-                          readOnly: true,
-                          controller: _genderCtrl,
-                          decoration: InputDecoration(
-                            labelText: "性别",
-                            hintText: "请选择性别",
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
+                        // 性别
+                        GestureDetector(
                           onTap: () {
+                            FocusScope.of(context).unfocus();
                             _genderPopVisible.value = true;
                           },
-                        ),
-
-                        SizedBox(height: 12),
-
-                        TextFormField(
-                          obscureText: false,
-                          readOnly: true,
-                          controller: _birthCtrl,
-                          decoration: InputDecoration(
-                            labelText: "生日",
-                            hintText: "请选择",
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: t.inputBgColor,
+                              borderRadius: BorderRadius.circular(t.inputRadius),
+                              border: Border.all(color: t.dividerColor, width: 1),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            child: Row(
+                              children: [
+                                Icon(Icons.person_outline, color: t.hintTextColor, size: 20),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    _genderCtrl.text,
+                                    style: t.bodyStyle,
+                                  ),
+                                ),
+                                Icon(Icons.chevron_right, color: t.hintTextColor, size: 20),
+                              ],
                             ),
                           ),
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        // 生日
+                        GestureDetector(
                           onTap: () {
+                            FocusScope.of(context).unfocus();
                             _birthPopVisible.value = true;
                           },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: t.inputBgColor,
+                              borderRadius: BorderRadius.circular(t.inputRadius),
+                              border: Border.all(color: t.dividerColor, width: 1),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            child: Row(
+                              children: [
+                                Icon(Icons.cake_outlined, color: t.hintTextColor, size: 20),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    _birthCtrl.text,
+                                    style: t.bodyStyle,
+                                  ),
+                                ),
+                                Icon(Icons.chevron_right, color: t.hintTextColor, size: 20),
+                              ],
+                            ),
+                          ),
                         ),
 
-                        SizedBox(height: 12),
+                        const SizedBox(height: 24),
 
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            backgroundColor: t.secondColor,
-                          ),
-                          onPressed: () {
-                            // 恢复选择变量
+                        // 重置按钮
+                        GestureDetector(
+                          onTap: () {
                             _selectGender = originGender;
                             _selectBirth = originBirth;
-                            // 恢复输入框文字
                             _nickCtrl.text = originNick;
                             _introCtrl.text = originIntro;
                             _genderCtrl.text = genderMap[originGender]!;
                             _birthCtrl.text = originBirth;
-                            // 清空输入框下方校验错误
                             _nickError.value = null;
                             _introError.value = null;
-
                             _genderPopVisible.value = false;
                             _birthPopVisible.value = false;
                           },
-                          child: const Text(
-                            "重置",
-                            style: TextStyle(fontSize: 15),
+                          child: Container(
+                            height: 50,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(t.buttonRadius),
+                              border: Border.all(color: t.hintTextColor, width: 1),
+                            ),
+                            child: Center(
+                              child: Text(
+                                "重置",
+                                style: t.bodyStyle.copyWith(
+                                  color: t.hintTextColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
 
-                        SizedBox(height: 12),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                        const SizedBox(height: 12),
+
+                        // 保存按钮
+                        Obx(() {
+                          final canSubmit = _nickError.value == null &&
+                              _introError.value == null &&
+                              !_isSubmitting.value;
+                          return GestureDetector(
+                            onTap: canSubmit
+                                ? updateInfo
+                                : () {
+                                    showTipSnackbar(msg: "请修正表单信息", isSuccess: false);
+                                  },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              height: 50,
+                              decoration: BoxDecoration(
+                                gradient: canSubmit
+                                    ? LinearGradient(colors: [
+                                        t.primaryColor,
+                                        t.primaryColor.withOpacity(0.85),
+                                      ])
+                                    : null,
+                                color: canSubmit ? null : t.hintTextColor.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(t.buttonRadius),
+                                boxShadow: canSubmit
+                                    ? [
+                                        BoxShadow(
+                                          color: t.primaryColor.withOpacity(0.4),
+                                          blurRadius: 12,
+                                          offset: const Offset(0, 6),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: Center(
+                                child: _isSubmitting.value
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2.5,
+                                        ),
+                                      )
+                                    : Text(
+                                        "保存",
+                                        style: t.buttonStyle.copyWith(fontSize: 16),
+                                      ),
+                              ),
                             ),
-                            backgroundColor: t.secondColor,
-                          ),
-                          onPressed:
-                              _nickError.value == null &&
-                                  _introError.value == null &&
-                                  !_isSubmitting.value
-                              ? updateInfo
-                              : () {
-                                  debugPrint(_nickError.value);
-                                  debugPrint(_introError.value);
-                                  debugPrint(_isSubmitting.toString());
-                                  showTipSnackbar(
-                                    msg: "请修正表单信息",
-                                    isSuccess: false,
-                                  );
-                                },
-                          child: const Text(
-                            "保存",
-                            style: TextStyle(fontSize: 15),
-                          ),
-                        ),
+                          );
+                        }),
                       ],
                     );
                   }),
@@ -568,7 +625,7 @@ class _ProfileEditState extends State<ProfileEdit>
                         onPressed: () => updateImage(uploadType: "bgImg"),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
+                          children: const [
                             Icon(Icons.wallpaper, color: Colors.white),
                             Text(
                               "更换背景图",
@@ -590,7 +647,6 @@ class _ProfileEditState extends State<ProfileEdit>
               top: 0,
               left: 10,
               child: Container(
-                // height: 150 + safeTop,
                 padding: EdgeInsets.fromLTRB(0, safeTop, 0, 0),
                 child: IconButton(
                   onPressed: () {
@@ -606,15 +662,17 @@ class _ProfileEditState extends State<ProfileEdit>
             ),
 
             Obx(() {
-              if (!_genderPopVisible.value) return SizedBox.shrink();
+              if (!_genderPopVisible.value) return const SizedBox.shrink();
               return GenderSelector(
                 initSelect: _selectGender,
-                bgColor: t.backGroundColor,
-                btnColor: t.secondColor,
+                bgColor: t.scaffoldBg,
+                btnColor: t.primaryColor,
                 genderMap: genderMap,
                 onSelect: (int selectGender) {
-                  _selectGender = selectGender;
-                  _genderCtrl.text = genderMap[_selectGender]!;
+                  setState(() {
+                    _selectGender = selectGender;
+                    _genderCtrl.text = genderMap[_selectGender]!;
+                  });
                 },
                 onVisible: (bool isVisible) {
                   _genderPopVisible.value = isVisible;
@@ -622,14 +680,16 @@ class _ProfileEditState extends State<ProfileEdit>
               );
             }),
             Obx(() {
-              if (!_birthPopVisible.value) return SizedBox.shrink();
+              if (!_birthPopVisible.value) return const SizedBox.shrink();
               return BirthdaySelector(
                 initialBirthStr: _selectBirth,
-                bgColor: t.backGroundColor,
-                btnColor: t.secondColor,
+                bgColor: t.scaffoldBg,
+                btnColor: t.primaryColor,
                 onConfirm: (birthStr) {
-                  _selectBirth = birthStr;
-                  _birthCtrl.text = birthStr;
+                  setState(() {
+                    _selectBirth = birthStr;
+                    _birthCtrl.text = birthStr;
+                  });
                 },
                 onVisible: (isVisible) {
                   _birthPopVisible.value = false;
@@ -639,6 +699,7 @@ class _ProfileEditState extends State<ProfileEdit>
           ],
         ),
       ),
+    ),
     );
   }
 }
