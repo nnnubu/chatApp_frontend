@@ -513,21 +513,21 @@ flutter build apk --release
 
 | 启动页 | 登录页 |
 |---|---|
-| ![image-20260831205247868](assets\images\image-20260831205247868.png) | ![image-20260831224801823](assets\images\image-20260831224801823.png) |
+| ![image-20260831205247868](assets/images/image-20260831205247868.png) | ![image-20260831224801823](assets/images/image-20260831224801823.png) |
 | **注册页** | **重置密码页** |
-| ![image-20260831225256577](assets\images\image-20260831225256577.png) | ![image-20260831225248160](assets\images\image-20260831225248160.png) |
+| ![image-20260831225256577](assets/images/image-20260831225256577.png) | ![image-20260831225248160](assets/images/image-20260831225248160.png) |
 
 ### 二、首页与消息中心
 
 | 首页-消息分类 | 首页-好友列表展开 | 好友搜索 |
 |---|---|---|
-| ![image-20260831232023394](assets\images\image-20260831232023394.png) | ![image-20260831205821868](assets\images\image-20260901000353146.png) | ![image-20260831232106873](assets\images\image-20260831232106873.png) |
+| ![image-20260831232023394](assets/images/image-20260831232023394.png) | ![image-20260831205821868](assets/images/image-20260901000353146.png) | ![image-20260831232106873](assets/images/image-20260831232106873.png) |
 
 ### 三、聊天与实时通信
 
 | 聊天页-消息气泡 | 聊天页-发送状态（打勾/转圈/感叹号） | 消息列表-长列表 |
 |---|---|---|
-| ![image-20260831205438222](assets\images\image-20260831205438222.png) | ![image-20260831205557478](assets\images\image-20260831205557478.png) | ![image-20260831232237872](assets\images\image-20260831232237872.png) |
+| ![image-20260831205438222](assets/images/image-20260831205438222.png) | ![image-20260831205557478](assets/images/image-20260831205557478.png) | ![image-20260831232237872](assets/images/image-20260831232237872.png) |
 
 > 发送状态示意图：发送中转圈 → ACK 成功后打勾 → 发送失败感叹号（可点击重发）。
 
@@ -535,29 +535,29 @@ flutter build apk --release
 
 | 陌生人主页 | 好友主页 | 好友申请 |
 |---|---|---|
-| ![image-20260831205927915](assets\images\image-20260831205927915.png) | ![image-20260831205624142](assets\images\image-20260831205624142.png) | ![image-20260831231919780](assets\images\image-20260831231919780.png) |
+| ![image-20260831205927915](assets/images/image-20260831205927915.png) | ![image-20260831205624142](assets/images/image-20260831205624142.png) | ![image-20260831231919780](assets/images/image-20260831231919780.png) |
 
 ### 五、个人中心与资料编辑
 
 | 个人中心                                                     | 资料编辑                                                     |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| ![image-20260831225400125](assets\images\image-20260831225400125.png) | ![image-20260831225427997](assets\images\image-20260831225427997.png) |
+| ![image-20260831225400125](assets/images/image-20260831225400125.png) | ![image-20260831225427997](assets/images/image-20260831225427997.png) |
 
 ### 六、图书模块
 
 | 图书列表 | 图书详情 | 我的书架 | 图书搜索 |
 |---|---|---|---|
-| ![image-20260831225634033](assets\images\image-20260831225634033.png) | ![image-20260831225653426](assets\images\image-20260831225653426.png) | ![image-20260831225723189](assets\images\image-20260831225723189.png) | ![image-20260831225746345](assets\images\image-20260831225746345.png) |
+| ![image-20260831225634033](assets/images/image-20260831225634033.png) | ![image-20260831225653426](assets/images/image-20260831225653426.png) | ![image-20260831225723189](assets/images/image-20260831225723189.png) | ![image-20260831225746345](assets/images/image-20260831225746345.png) |
 
 ### 七、主题切换
 
 | 清新绿 | 暖复古 | 暗夜黑 | 海洋蓝 |
 |---|---|---|---|
-| ![image-20260831232839611](assets\images\image-20260831232839611.png) | ![image-20260831232852362](assets\images\image-20260831232852362.png) | ![image-20260831232905074](assets\images\image-20260831232905074.png) | ![image-20260831232917083](assets\images\image-20260831232917083.png) |
+| ![image-20260831232839611](assets/images/image-20260831232839611.png) | ![image-20260831232852362](assets/images/image-20260831232852362.png) | ![image-20260831232905074](assets/images/image-20260831232905074.png) | ![image-20260831232917083](assets/images/image-20260831232917083.png) |
 
 | 樱花粉 | 午夜紫 | 极简白 | 日落橙 |
 |---|---|---|---|
-| ![image-20260831232934901](assets\images\image-20260831232934901.png) | ![image-20260831232948547](assets\images\image-20260831232948547.png) | ![image-20260831232958414](assets\images\image-20260831232958414.png) | ![image-20260831233010962](assets\images\image-20260831233010962.png) |
+| ![image-20260831232934901](assets/images/image-20260831232934901.png) | ![image-20260831232948547](assets/images/image-20260831232948547.png) | ![image-20260831232958414](assets/images/image-20260831232958414.png) | ![image-20260831233010962](assets/images/image-20260831233010962.png) |
 
 ---
 
