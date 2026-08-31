@@ -1,4 +1,4 @@
-# ChatApp Frontend
+﻿# ChatApp Frontend
 
 基于 Flutter + GetX 的即时通讯移动端应用，支持私聊、好友系统、实时消息推送、二维码加好友、图片裁剪上传等功能。配合 [chatApp_backend](https://github.com/nnnubu/chatApp_backend) 后端使用。
 
@@ -116,6 +116,7 @@
                     │   ├── onTimeOut(requestId) → 超时, 标记 failed
                     │   ├── _pending Map        → requestId → AckListener
                     │   ├── roamedMsgList        → 超过 3 次重试的流放消息
+                    │   ├── resetForResend(id)   → 从流放队列取出重置，供用户手动重发
                     │   └── ackRespStream        → ACK 结果事件流
                     │
                     ├── MessageDispatcher (消息分发)
@@ -151,6 +152,9 @@
       ▼
 WebSocketService.sendDto(dto)
       │
+      ├─ 本地乐观插入: 立即构建消息卡片插入聊天列表(AnimatedList 动画)
+      │   └─ 状态置为 pending(转圈)
+      │
       ├─ 心跳消息 → 直接 send, 不进队列
       └─ 业务消息 → _outGoingQueue.add(dto)
       │
@@ -168,7 +172,7 @@ AckHelper.addPendingId(dto)
       │
       ├─ 首次发送: 注册 AckListener{timer:8s, count:1, status:pending}
       ├─ 重试发送: count++, 重建定时器
-      └─ count >= 3 → 移除 pending, 加入 roamedMsgList, 推送 roamed 事件
+      └─ count >= 3 → 移除 pending, 加入 roamedMsgList(流放), 推送 roamed 事件
       │
       ▼ 未被流放
 _outGoingQueue.removeFirst()  (出队)
@@ -188,6 +192,7 @@ WebsocketConnector.send(dto)
       │     ├─ cancel 定时器
       │     ├─ 用后端返回的 msgId 更新 dto
       │     └─ 推送 AckStatus.success
+      │         → UI 状态图标: 转圈 → 打勾(已送达)
       │         → 队列继续消费下一条
       │
       ├─ 收到 ack(success=false) →
@@ -198,6 +203,21 @@ WebsocketConnector.send(dto)
             └─ 推送 AckStatus.failed
                 → WebSocketService 监听: 将原始 dto 重新入队
                 → 队列再次消费(第2次/第3次)
+                → UI 状态图标持续转圈
+      │
+      ▼  3 次重试均失败 → 流放
+AckHelper: 移除 pending, 加入 roamedMsgList
+      │
+      └─ 推送 AckStatus.roamed
+          → UI 状态图标: 转圈 → 感叹号(发送失败)
+      │
+      ▼  用户点击感叹号 → 手动重发
+_resendMessage(item)
+      ├─ 链路不可用 → 先触发手动重连(manualReconnect)
+      ├─ resetForResend(requestId) → 从流放队列取出并重置状态
+      ├─ removeFromQueue() → 移除旧发送队列记录(防重复)
+      ├─ 状态置回 pending(转圈)
+      └─ sendDto(dto) → 重新入队发送, 重复上述 ACK 流程
 ```
 
 ### 二、消息接收与分发链路
@@ -338,11 +358,15 @@ WebSocketService.connect(token)
 - 好友申请列表（待处理申请实时推送）
 - 同意 / 拒绝好友申请
 - 好友列表展示
+- 好友搜索（按昵称搜索，区分是否已是好友，动画展开结果面板）
 
 ### 实时通信
 - WebSocket 长连接自动重连（指数退避）
 - 心跳保活（10s ping / 6s pong / 连续丢 3 次判定死亡）
 - 消息 ACK 确认（8s 超时，最多重试 3 次，超过则流放）
+- 消息发送状态监测：本地乐观插入 → 转圈 → ACK 打勾 → 失败感叹号
+- 失败消息手动重发（点击感叹号，从流放队列取出重新发送）
+- 手动重连入口（三态颜色：连接中橙 / 检测健康深橙 / 失败红）
 - 多类型消息分发器（聊天/好友申请/分类拉取，可扩展）
 - 离线消息拉取（登录后同步未读消息和待处理申请）
 - 发送队列（连接未就绪时积压，恢复后自动补发）
@@ -352,12 +376,24 @@ WebSocketService.connect(token)
 - 自定义方形裁剪（手势缩放拖动）
 - 自动压缩（尺寸 + 质量）
 - 上传到后端静态资源服务器
+- 静态资源网络请求失败兜底（头像/背景图加载失败显示占位图）
 
 ### 状态管理
+- 全局字体/文字颜色跟随主题（简介、用户名等文本随背景自适应，避免与背景色混淆）
 - GetX 全局常驻控制器：
   - `UserController`：用户信息、登录态、本地持久化
   - `ThemeController`：主题切换（8 套主题：清新绿/暖复古/暗夜黑/海洋蓝/樱花粉/午夜紫/极简白/日落橙，切换图标动画）
   - `MessageController`：全局消息状态、会话管理
+  - `BookController`：图书列表、分类、书架状态管理
+
+### 图书模块
+- 图书列表拉取（后端分页）
+- 图书分类浏览
+- 图书详情页
+- 我的书架（添加/移除/更新阅读进度）
+- 图书搜索
+- epub/pdf 阅读器待接入
+
 
 ## 项目结构
 
@@ -471,6 +507,62 @@ flutter run
 ```bash
 flutter build apk --release
 ```
+## 应用界面展示
+
+> 以下区域为 App 界面截图预留位。截图建议使用 **9:16 竖屏**（如 1080×1920），保持统一尺寸，放入 `assets/images/screenshots/` 目录后在下方填入相对路径即可。
+
+### 一、账户与登录流程
+
+| 启动页 | 登录页 |
+|---|---|
+| ![image-20260831205247868](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831205247868.png) | ![image-20260831224801823](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831224801823.png) |
+| **注册页** | **重置密码页** |
+| ![image-20260831225256577](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831225256577.png) | ![image-20260831225248160](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831225248160.png) |
+
+### 二、首页与消息中心
+
+| 首页-消息分类 | 首页-好友列表展开 | 好友搜索 |
+|---|---|---|
+| ![image-20260831232023394](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831232023394.png) | ![image-20260831205821868](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831205821868.png) | ![image-20260831232106873](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831232106873.png) |
+
+### 三、聊天与实时通信
+
+| 聊天页-消息气泡 | 聊天页-发送状态（打勾/转圈/感叹号） | 消息列表-长列表 |
+|---|---|---|
+| ![image-20260831205438222](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831205438222.png) | ![image-20260831205557478](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831205557478.png) | ![image-20260831232237872](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831232237872.png) |
+
+> 发送状态示意图：发送中转圈 → ACK 成功后打勾 → 发送失败感叹号（可点击重发）。
+
+### 四、好友与陌生人
+
+| 陌生人主页 | 好友主页 | 好友申请 |
+|---|---|---|
+| ![image-20260831205927915](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831205927915.png) | ![image-20260831205624142](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831205624142.png) | ![image-20260831231919780](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831231919780.png) |
+
+### 五、个人中心与资料编辑
+
+| 个人中心                                                     | 资料编辑                                                     |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| ![image-20260831225400125](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831225400125.png) | ![image-20260831225427997](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831225427997.png) |
+
+### 六、图书模块
+
+| 图书列表 | 图书详情 | 我的书架 | 图书搜索 |
+|---|---|---|---|
+| ![image-20260831225634033](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831225634033.png) | ![image-20260831225653426](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831225653426.png) | ![image-20260831225723189](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831225723189.png) | ![image-20260831225746345](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831225746345.png) |
+
+### 七、主题切换
+
+| 清新绿 | 暖复古 | 暗夜黑 | 海洋蓝 |
+|---|---|---|---|
+| ![image-20260831232839611](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831232839611.png) | ![image-20260831232852362](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831232852362.png) | ![image-20260831232905074](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831232905074.png) | ![image-20260831232917083](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831232917083.png) |
+
+| 樱花粉 | 午夜紫 | 极简白 | 日落橙 |
+|---|---|---|---|
+| ![image-20260831232934901](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831232934901.png) | ![image-20260831232948547](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831232948547.png) | ![image-20260831232958414](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831232958414.png) | ![image-20260831233010962](C:\Users\nnnubu\AppData\Roaming\Typora\typora-user-images\image-20260831233010962.png) |
+
+---
+
 ## 项目难点与设计思考
 
 1. **消息可靠传输**：发送时生成 `requestId`，等待后端 ACK，8s 超时自动重试，最多 3 次，超过则流放并提示用户，保障消息不丢失
@@ -482,6 +574,10 @@ flutter build apk --release
 7. **每连接单消费协程**：后端 WebSocket 同一连接多协程并发 `WriteMessage` 会报文错乱，用管道 + 单消费协程串行写入
 8. **GetX 常驻控制器**：用户/主题/消息三个控制器设为 `permanent`，跨页面共享状态，登录态通过 `shared_preferences` 持久化
 9. **聊天列表性能**：`AnimatedList` 插入动画 + 游标分页加载 + 图片缓存限制 10MB，避免长列表内存溢出
+10. **发送状态监测**：本地乐观插入即时反馈，ACK 结果驱动状态图标流转（转圈→打勾/感叹号），失败消息进入流放队列等待用户手动重发，兼顾即时体验与最终一致性
+11. **手动重发与链路自愈**：感叹号点击触发重发时，若链路不可用先自动触发手动重连，流放消息出队重置后重新入队发送
+12. **AnimatedList 事件缓存**：列表未挂载（如高度动画期间）时缓存插入/删除事件，build 完成后批量回放，避免动画事件丢失
+13. **主题字体自适应**：文字颜色随主题背景动态适配，简介等覆盖在背景图上的文本不因颜色相近而不可读
 
 ## 待开发
 
@@ -491,7 +587,7 @@ flutter build apk --release
 - [ ] 消息撤回
 - [x] 消息重发与发送状态监测（本地乐观插入、ACK状态展示、失败可重发）
 - [ ] 消息搜索
-- [x] 读书模块（图书列表/分类/书架/详情/搜索，epub/pdf 阅读器待接入）
+- [x] 读书模块框架搭建（图书列表/分类/书架/详情/搜索，epub/pdf 阅读器待接入）
 - [ ] 离线推送通知（指用户不登录软件 通过系统通知消息）
 - [ ] 用户高频访问信息缓存本地 （预计 Isar 来做业务持久缓存，cached_network_image 做图片/二进制资源缓存，Drift(SQLite) 做聊天消息缓存）
 

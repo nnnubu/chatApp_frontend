@@ -432,22 +432,21 @@ class _MessageView extends State<MessageView>
                           child: Stack(
                             children: [
                               Container(
-                                width: 55,
-                                height: 55,
+                                width: 50,
+                                height: 50,
                                 margin: const EdgeInsets.all(5),
-                                decoration: BoxDecoration(
-                                  color: Colors.white30,
-                                  border: Border.all(
-                                    color: Colors.black,
-                                    width: 2,
-                                  ),
-                                  borderRadius: BorderRadius.circular(5),
+                                clipBehavior: Clip.hardEdge,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
                                 ),
                                 child: Image.network(
                                   buildStaticUrl(item.avatarUrl),
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stack) {
-                                    return const Icon(Icons.person);
+                                    return Container(
+                                      color: t.thirdColor,
+                                      child: Icon(Icons.person, color: t.hintTextColor),
+                                    );
                                   },
                                 ),
                               ),
