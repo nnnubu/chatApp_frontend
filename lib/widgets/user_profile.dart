@@ -8,6 +8,7 @@ import 'package:chatapp/service/user_service.dart';
 import 'package:chatapp/views/home/user_info/collection.dart';
 import 'package:chatapp/views/home/user_info/post.dart';
 import 'package:chatapp/views/home/user_info/recommend.dart';
+import 'package:chatapp/utils/show_tip.dart';
 import 'package:chatapp/widgets/message/item_info/chat_list/chat_item.dart';
 import 'package:chatapp/widgets/user_image_box.dart';
 import 'package:flutter/material.dart';
@@ -306,10 +307,9 @@ class _UserProfileState extends State<UserProfile>
                                         await _loadUserInfo();
                                         convUid = _conversationUid.value;
                                         if (convUid.isEmpty) {
-                                          Get.snackbar(
-                                            "网络异常",
-                                            "无法获取会话信息，请检查网络连接后重试",
-                                            snackPosition: SnackPosition.BOTTOM,
+                                          showTipSnackbar(
+                                            msg: "无法获取会话信息，请检查网络连接后重试",
+                                            isSuccess: false,
                                           );
                                           return;
                                         }

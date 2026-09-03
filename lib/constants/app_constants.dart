@@ -19,6 +19,42 @@ enum MessageType {
   nil,
 }
 
+// 消息内容类型
+enum ContentType {
+  text, // 0 文本（默认）
+  image, // 1 图片
+  voice, // 2 语音
+  video, // 3 视频
+}
+
+extension ContentTypeExt on ContentType {
+  int get code {
+    switch (this) {
+      case ContentType.text:
+        return 0;
+      case ContentType.image:
+        return 1;
+      case ContentType.voice:
+        return 2;
+      case ContentType.video:
+        return 3;
+    }
+  }
+
+  static ContentType fromCode(int code) {
+    switch (code) {
+      case 1:
+        return ContentType.image;
+      case 2:
+        return ContentType.voice;
+      case 3:
+        return ContentType.video;
+      default:
+        return ContentType.text;
+    }
+  }
+}
+
 extension MsgTypeExt on MessageType {
   double get actionWidth {
     const base = 80.0;

@@ -4,6 +4,7 @@ import 'package:chatapp/controller/global/theme_controller.dart';
 import 'package:chatapp/dto/dto_book.dart';
 import 'package:chatapp/service/book_service.dart';
 import 'package:chatapp/utils/build_static_url.dart';
+import 'package:chatapp/utils/show_tip.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -57,7 +58,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
     final success = await _bookController.addToShelf(_bookUid, status: status);
     if (success) {
       _loadDetail();
-      Get.snackbar('成功', '已添加到书架', snackPosition: SnackPosition.BOTTOM);
+      showTipSnackbar(msg: '已添加到书架', isSuccess: true);
     }
   }
 

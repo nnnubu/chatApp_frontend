@@ -33,6 +33,7 @@ class CommonAnimatedList extends StatefulWidget {
   final bool Function()? shouldAutoScrollBottom; // 是否滑动到底部
   final ScrollController? scrollController; // 外部传入的滚动控制器，用于监听滚动位置
   final EdgeInsetsGeometry? padding; // 列表内边距
+  final bool reverse; // 是否倒序列表（聊天列表用：最新消息在底部，天然解决底部留白）
 
   const CommonAnimatedList({
     super.key,
@@ -48,6 +49,7 @@ class CommonAnimatedList extends StatefulWidget {
     this.shouldAutoScrollBottom,
     this.scrollController,
     this.padding,
+    this.reverse = false,
   });
   @override
   State<StatefulWidget> createState() {
@@ -66,6 +68,11 @@ class _CommonAnimatedListState extends State<CommonAnimatedList> {
   bool get _usesExternalController => widget.scrollController != null;
   ScrollController get _scrollController =>
       widget.scrollController ?? _internalScrollController!;
+
+  // ---- 删除处理 ----
+  // AnimatedList.removeItem 只对被删元素播放删除动画，其余元素立即重排（无过渡）。
+  // 之前尝试过给后续元素加"补位上移"动画，但时序上易与 removeItem 同步重排冲突，
+  // 造成"向下拉/闪烁"。用户决定放弃补位动画，删除只保留被删元素本身的滑走动画。
 
   @override
   void initState() {
@@ -98,22 +105,42 @@ class _CommonAnimatedListState extends State<CommonAnimatedList> {
     final index = parseResult.index;
     final item = parseResult.item;
     if (_listKey.currentState == null) return;
+    // reverse 模式下，AnimatedList 的 index 与数据源 index 方向相反：
+    // - insert 时 dataSource 已含新元素（长度 N），数据源位置 r 的 visual index = N-1-r
+    // - remove 时 dataSource 已 removeAt（长度 N-1），删除前位置 r 的 visual index = N-1-r
+    //   （这里 dataSource.length 已是 N-1，故 visual = (N-1) - r = dataSource.length - r）
+    final int visualIndex = widget.reverse
+        ? (operateType == ListOperateType.insert
+            ? widget.dataSource.length - 1 - index
+            : widget.dataSource.length - index)
+        : index;
     switch (operateType) {
         // 通过 _listKey.currentState 获取列表内部控制器，执行带动画的删除函数
         // ?. 空安全调用，防止页面还没有 build 完成就操作
         case ListOperateType.insert:
           widget.onPlayAnimation?.call();
           _listKey.currentState!.insertItem(
-            index,
+            visualIndex,
             duration: const Duration(milliseconds: 300),
           );
           // 告诉被绑定的 AnimatedLsit 去 索引 index 下取数据
 
           // 自己发消息时滑动到最底下
+          // 注：reverse 下"用户看历史时对方新消息"已由 MessageController 挂起
+          // （不回到底部不插入列表），故这里不需要任何 offset 补偿/特殊处理。
           final needScroll = widget.shouldAutoScrollBottom?.call() ?? false;
           if (needScroll) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted || !_scrollController.hasClients) return;
+              if (widget.reverse) {
+                // reverse 列表：offset 0 即底部（最新消息），直接滑到 0
+                _scrollController.animateTo(
+                  0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                );
+                return;
+              }
               final maxExtent = _scrollController.position.maxScrollExtent;
               final currentOffset = _scrollController.offset;
               final viewportHeight = _scrollController.position.viewportDimension;
@@ -146,7 +173,8 @@ class _CommonAnimatedListState extends State<CommonAnimatedList> {
           }
           break;
         case ListOperateType.remove:
-          _listKey.currentState!.removeItem(index, (context, animation) {
+          // 删除：只播放被删元素自身的滑走动画，后续元素由 AnimatedList 立即重排。
+          _listKey.currentState!.removeItem(visualIndex, (context, animation) {
             return widget.deleteItemBuilder(item, animation);
           }, duration: const Duration(milliseconds: 300));
           // 告诉被绑定的 AnimatedList 删除自身 index 下的数据
@@ -202,14 +230,19 @@ class _CommonAnimatedListState extends State<CommonAnimatedList> {
             initialItemCount: widget.dataSource.length,
             controller: _scrollController,
             scrollDirection: widget.scrollDirection,
+            reverse: widget.reverse,
             padding: widget.padding,
             itemBuilder: (context, index, animation) {
+              // reverse 模式下，AnimatedList 的 index 与数据源方向相反：
+              // 视觉 index 0 在底部（最新消息），数据源 index 0 是顶部（最早历史）
+              final int realIndex =
+                  widget.reverse ? widget.dataSource.length - 1 - index : index;
               // 防止相同事件类型的其他分类区域触发事件时 当前分类区域由于空数据源触发下面这个下标越界
-              if (index < 0 || index >= widget.dataSource.length) {
+              if (realIndex < 0 || realIndex >= widget.dataSource.length) {
                 return const SizedBox.shrink();
               }
               // 此处的 index 即是 前面 insertItem 和 removeItem 里传输的 index
-              final item = widget.dataSource[index];
+              final item = widget.dataSource[realIndex];
               // 入场淡入动画 新增条目时播放 由父组件自行定义
               return widget.insertItemBuilder(item, animation);
             },

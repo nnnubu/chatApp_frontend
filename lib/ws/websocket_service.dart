@@ -133,6 +133,10 @@ class WebSocketService {
   static const _manualReconnectGuardTimeout = Duration(seconds: 20);
 
   Future<void> connect(String token) async {
+    // 始终使用最新的 token（避免成员变量缓存旧 token 导致认证失败 200 握手失败）
+    if (token.isEmpty) {
+      token = Get.find<UserController>().token;
+    }
     // 建立连接 则开启自动重连权限 并重置连接耗尽标记
     _allowReconnect = true;
     // 全局仅初始化一次底层监听，防止重复订阅
@@ -247,7 +251,7 @@ class WebSocketService {
       _availableReconnectCount--;
       debugPrint("开始执行重连 剩余重连次数：$_availableReconnectCount");
 
-      unawaited(connect(token));
+      unawaited(connect(''));
       // 延时递增 仅 healthy 事件才会重置回2s
       _reconnectDelay *= 2;
       if (_reconnectDelay > _maxReconnectDelay) {
@@ -289,7 +293,7 @@ class WebSocketService {
       }
 
       // connect 内部会设置 _allowReconnect = true
-      await connect(token);
+      await connect('');
       // 不在此处重置 isManuallyReconnecting
       // 由心跳健康（连接成功）或重连耗尽（连接失败）时重置
     } catch (e, stack) {

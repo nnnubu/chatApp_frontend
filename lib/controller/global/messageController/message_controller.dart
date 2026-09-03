@@ -3,6 +3,7 @@ import 'package:chatapp/controller/global/messageController/base.dart';
 import 'package:chatapp/controller/global/messageController/categoryList/category_list.dart';
 import 'package:chatapp/controller/global/messageController/chatList/chat_list.dart';
 import 'package:chatapp/controller/global/messageController/messageList/message_list.dart';
+import 'package:chatapp/controller/global/user_controller.dart';
 import 'package:chatapp/service/user_service.dart';
 import 'package:chatapp/widgets/message/item_info/base_info.dart';
 import 'package:chatapp/widgets/message/item_info/category_list/category_item_info.dart';
@@ -27,6 +28,40 @@ class MessageController extends GetxController {
   late final CategoryList _categoryList;
   late final ChatList chatList;
 
+  // ===== 挂起机制：看历史时对方消息暂不插入聊天列表 =====
+  // 用户正在看历史（不在底部）时，若对方新消息插入底部，AnimatedList 的滚动行为
+  // 会导致视角偏移/闪烁。因此当前活跃会话 + 不在底部时的对方消息先挂起，
+  // 用户回到底部时由 chat_page 调用 flushPending 批量插入。
+  String? _activeConversationUid; // 当前活跃聊天会话（由 chat_page 设置）
+  bool _activeAtBottom = true; // 当前是否在列表底部（由 chat_page 同步）
+  // 挂起的聊天消息：会话 uid -> 消息列表
+  final Map<String, List<ChatItem>> _pendingChatItems = {};
+  // 挂起消息计数（右下角"回到底部"按钮角标）
+  final RxInt pendingNewMsgCount = 0.obs;
+
+  /// chat_page 进入会话时设置活跃会话
+  void setActiveConversation(String? conversationUid) {
+    _activeConversationUid = conversationUid;
+    _activeAtBottom = true;
+    pendingNewMsgCount.value = 0;
+  }
+
+  /// chat_page 滚动时同步是否在底部
+  void setActiveAtBottom(bool atBottom) {
+    _activeAtBottom = atBottom;
+  }
+
+  /// 用户回到底部时调用：把挂起的消息批量插入聊天列表
+  void flushPending(String conversationUid) {
+    final pending = _pendingChatItems.remove(conversationUid);
+    if (pending == null || pending.isEmpty) return;
+    pendingNewMsgCount.value = 0;
+    final state = chatList.getConversationState(conversationUid);
+    for (final item in pending) {
+      addChatItem(item, state.messageList.length);
+    }
+  }
+
   // 初始化时订阅消息分发总线的数据包装推送
   MessageController() {
     super.onInit();
@@ -42,6 +77,21 @@ class MessageController extends GetxController {
         } else if (event.item is ChatItem) {
           // 聊天消息渲染消息列表处的卡片的同时 也要渲染到聊天列表
           ChatItem item = event.item as ChatItem;
+          // 看历史时（当前活跃会话 + 不在底部）对方新消息：挂起暂不插入列表，
+          // 避免插入底部引起视角偏移/闪烁；用户回到底部时 flushPending 批量插入。
+          final String myUid = Get.find<UserController>().uid;
+          final bool isSelf = (item.senderUid ?? item.uid) == myUid;
+          if (!item.isInsertToTop &&
+              !isSelf &&
+              _activeConversationUid != null &&
+              _activeConversationUid == item.conversationUid &&
+              !_activeAtBottom) {
+            _pendingChatItems
+                .putIfAbsent(item.conversationUid!, () => [])
+                .add(item);
+            pendingNewMsgCount.value++;
+            return;
+          }
           if (item.isInsertToTop ||
               chatList
                   .getConversationState(item.conversationUid!)
@@ -228,6 +278,21 @@ class MessageController extends GetxController {
         item: newItem,
       ),
     );
+  }
+
+  // 删除聊天消息（本地删除，触发 CommonAnimatedList 删除动画）
+  // 返回被删消息在数据源中的 index；未找到返回 -1
+  int removeChatItem(ChatItem item) {
+    final int index = chatList.removeItem(item);
+    if (index == -1) return -1;
+    _operateStream.add(
+      ChatListOperate(
+        type: ListOperateType.remove,
+        index: index,
+        item: item,
+      ),
+    );
+    return index;
   }
 
 

@@ -20,6 +20,7 @@ class ChatHandler extends BaseMessageHanlder {
       avatarUrl: data["avatarUrl"],
       conversationUid: data["conversationUid"],
       content: data["content"],
+      contentType: (data["contentType"] as num?)?.toInt() ?? 0,
       isInsertToTop: data["isInsertToTop"]
     );
     return MessageListEvent(item: chatMessageItem);

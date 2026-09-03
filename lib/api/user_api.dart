@@ -81,6 +81,54 @@ class UserApi {
     return res.data as Map<String, dynamic>?;
   }
 
+  /// 聊天图片上传：返回 {originUrl, thumbUrl, width, height}
+  static Future<Map<String, dynamic>?> uploadChatImage(
+    Uint8List bytes,
+    String ext,
+  ) async {
+    String fileName =
+        "chat${DateTime.now().millisecondsSinceEpoch}.${ext.isEmpty ? 'jpg' : ext}";
+    MultipartFile file = MultipartFile.fromBytes(
+      bytes,
+      filename: fileName,
+      contentType: DioMediaType.parse("image/jpeg"),
+    );
+    FormData formData = FormData.fromMap({"file": file});
+    Response res = await DioUtil.dio.post(
+      "auth/uploadChatImage",
+      data: formData,
+      options: Options(
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
+    return res.data as Map<String, dynamic>?;
+  }
+
+  /// 聊天语音上传：返回 {url}
+  static Future<Map<String, dynamic>?> uploadChatVoice(
+    Uint8List bytes,
+    String ext,
+  ) async {
+    String fileName =
+        "chatVoice${DateTime.now().millisecondsSinceEpoch}.${ext.isEmpty ? 'm4a' : ext}";
+    MultipartFile file = MultipartFile.fromBytes(
+      bytes,
+      filename: fileName,
+      contentType: DioMediaType.parse("audio/mp4"),
+    );
+    FormData formData = FormData.fromMap({"file": file});
+    Response res = await DioUtil.dio.post(
+      "auth/uploadChatVoice",
+      data: formData,
+      options: Options(
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 10),
+      ),
+    );
+    return res.data as Map<String, dynamic>?;
+  }
+
   static Future<Map<String, dynamic>?> updateInfo(
     Map<String, dynamic> body,
   ) async {

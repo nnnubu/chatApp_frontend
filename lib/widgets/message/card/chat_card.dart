@@ -1,4 +1,6 @@
-﻿import 'package:chatapp/constants/app_constants.dart';
+import 'package:chatapp/constants/app_constants.dart';
+import 'package:chatapp/widgets/message/item_info/chat_list/image_message.dart';
+import 'package:chatapp/widgets/message/item_info/chat_list/voice_message.dart';
 import 'package:chatapp/controller/global/theme_controller.dart';
 import 'package:chatapp/pages/chat_page.dart';
 import 'package:chatapp/pages/stranger_preview.dart';
@@ -32,6 +34,19 @@ class _ChatCardState extends State<ChatCard> {
   @override
   void dispose() {
     super.dispose();
+  }
+
+  /// 分类列表消息摘要：图片消息显示 [图片]
+  String _messagePreview(ChatItem item) {
+    if (item.contentType == ContentType.image.code ||
+        ImageMessageContent.tryParse(item.content) != null) {
+      return '[图片]';
+    }
+    if (item.contentType == ContentType.voice.code ||
+        VoiceMessageContent.tryParse(item.content) != null) {
+      return '[语音]';
+    }
+    return item.content ?? "";
   }
 
   @override
@@ -101,7 +116,7 @@ class _ChatCardState extends State<ChatCard> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        info.content ?? "",
+                        _messagePreview(info),
                         style: t.captionStyle.copyWith(fontSize: 13),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

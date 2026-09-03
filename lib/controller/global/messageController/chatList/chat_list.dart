@@ -49,6 +49,8 @@ class ChatList {
       avatarUrl: newItem.avatarUrl,
       conversationUid: newItem.conversationUid,
       content: newItem.content,
+      contentType: newItem.contentType,
+      localImagePath: newItem.localImagePath,
       senderUid: newItem.senderUid,
       msgId: newItem.msgId,
       requestId: newItem.requestId,
@@ -107,5 +109,24 @@ class ChatList {
 
   void clear() {
     _chatMap.clear();
+  }
+
+  /// 从会话列表中移除指定消息（本地删除，不涉及服务端）
+  /// 返回被移除元素的下标，供删除动画使用；未找到返回 -1
+  int removeItem(ChatItem item) {
+    final convUid = item.conversationUid;
+    if (convUid == null || !_chatMap.containsKey(convUid)) return -1;
+    final RxList<ChatItem> list = _chatMap[convUid]!.messageList;
+    // 优先用 requestId 匹配（前端临时消息），其次用 msgId
+    int index = -1;
+    if (item.requestId != null) {
+      index = list.indexWhere((e) => e.requestId == item.requestId);
+    }
+    if (index == -1 && item.msgId != null) {
+      index = list.indexWhere((e) => e.msgId == item.msgId);
+    }
+    if (index == -1) return -1;
+    list.removeAt(index);
+    return index;
   }
 }
