@@ -271,7 +271,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                 // notification.metrics.minScrollExtent 最小滚动位置（ListView头部边界）
                 // notification.metrics.maxScrollExtent 最大滚动位置（ListView尾部边界）
                 // notification.metrics.atEdge 是否已经滚到头部 or 尾部边界
-                child: NotificationListener<ScrollNotification>(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: NotificationListener<ScrollNotification>(
                   // onNotification会极高频率执行 滚动一帧就调用一次
                   onNotification: (ScrollNotification notification) {
                     if (notification is OverscrollNotification) {
@@ -306,6 +308,14 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                     dataSource: dataSource,
                     eventPaser: (ListEvent event) {
                       if (event is ChatListOperate) {
+                        // 非当前会话的消息不触发插入动画（避免在 A 聊天时 B 的消息执行动画）
+                        if (event.item is ChatItem) {
+                          final ChatItem item = event.item as ChatItem;
+                          if (item.conversationUid != null &&
+                              item.conversationUid != _chatItem.conversationUid) {
+                            return null;
+                          }
+                        }
                         return (
                           matched: true,
                           index: event.index,
@@ -317,8 +327,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                     },
                     insertItemBuilder: (item, animation) {
                       if (item is ChatItem) {
-                        // 判断是不是自己发的消息
-                        final bool isSelf = item.uid == userController.uid;
+                        // 判断是不是自己发的消息：优先用 senderUid（发送方），uid 是会话对端语义，系统消息可能不一致
+                        final bool isSelf = (item.senderUid ?? item.uid) == userController.uid;
+                        isSelf ? _shouldScrollToBottom = true : _shouldScrollToBottom = false;
                         final offsetTween = isSelf
                             ? Tween<Offset>(
                                 begin: const Offset(1, 0),
@@ -375,6 +386,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                       }
                       return val;
                     },
+                    ),
                   ),
                 ),
               ),

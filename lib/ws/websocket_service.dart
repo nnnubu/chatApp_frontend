@@ -38,10 +38,14 @@ class WebSocketService {
       if (health == ConnectionHealth.healthy) {
         debugPrint("链路双向通信验证成功，重置重连退避时长与可用重连次数");
         _reconnectDelay = const Duration(seconds: 1);
-        _availableReconnectCount = 5;
+        _availableReconnectCount = 8;
         _allowReconnect = true;
+        autoReconnecting.value = false;
         autoReconnectExhausted.value = false;
         isManuallyReconnecting.value = false;
+        // 链路恢复健康，取消手动重连兜底计时器
+        _manualReconnectGuard?.cancel();
+        _manualReconnectGuard = null;
       }
       // 心跳健康 唤醒队列
       unawaited(_startConsumeOutGoing());
@@ -107,7 +111,10 @@ class WebSocketService {
   // 最大重连间隔
   static const Duration _maxReconnectDelay = Duration(seconds: 8);
   // 可用重连次数
-  int _availableReconnectCount = 5;
+  int _availableReconnectCount = 8;
+  // 正在自动重连中（连接断开后自动重连进行中、尚未恢复健康）
+  // 与 autoReconnectExhausted 的区别：重连进行中显示"正在重连"，耗尽后才显示手动重连入口
+  final RxBool autoReconnecting = false.obs;
   // 重连次数耗尽与否 用于用户手动重连
   final RxBool autoReconnectExhausted = false.obs;
   // 是否正在执行用户手动触发的重连 防止重复点击
@@ -119,8 +126,11 @@ class WebSocketService {
   final Rx<ConnectionHealth> connectionHealth = ConnectionHealth.unconfirmed.obs;
   // 等待就绪信号的计时器
   Timer? _waitReadyTimer;
-  // 等待就绪最大时长
-  static const _waitReadyTimeout = Duration(seconds: 3);
+  // 等待就绪最大时长（提至 8s，容忍弱网完整握手 + 后端调度）
+  static const _waitReadyTimeout = Duration(seconds: 8);
+  // 手动重连超时兜底计时器（防止 isManuallyReconnecting 永久锁死）
+  Timer? _manualReconnectGuard;
+  static const _manualReconnectGuardTimeout = Duration(seconds: 20);
 
   Future<void> connect(String token) async {
     // 建立连接 则开启自动重连权限 并重置连接耗尽标记
@@ -148,6 +158,8 @@ class WebSocketService {
             _heartBeat.stop();
 
             if (_allowReconnect) {
+              // 进入自动重连状态：UI 显示"正在重连"
+              autoReconnecting.value = true;
               _reconnect();
             }
           }
@@ -192,6 +204,7 @@ class WebSocketService {
     backendReady.value = false;
     // 主动断开 禁止后续自动重连
     _allowReconnect = false;
+    autoReconnecting.value = false;
     autoReconnectExhausted.value = false;
     isManuallyReconnecting.value = false;
     // 清除正在排队的重连任务
@@ -216,6 +229,7 @@ class WebSocketService {
     if (!_allowReconnect || _reconnectTimer != null) return;
     if (_availableReconnectCount <= 0) {
       _allowReconnect = false; // 耗尽次数 关闭自动重连
+      autoReconnecting.value = false; // 自动重连结束，转手动重连入口
       autoReconnectExhausted.value = true; // 通知 UI 渲染手动重连入口
       isManuallyReconnecting.value = false; // 关闭手动重连
       return;
@@ -246,12 +260,22 @@ class WebSocketService {
   Future<void> manualReconnect() async {
     if (isManuallyReconnecting.value) return;
     isManuallyReconnecting.value = true;
-    _availableReconnectCount = 5;
+    autoReconnecting.value = false; // 手动接管，关闭自动重连标识
+    _availableReconnectCount = 8;
     autoReconnectExhausted.value = false;
     _reconnectDelay = const Duration(seconds: 1);
 
     // 取消正在运行的自动重连定时器，避免冲突
     _clearReconnectTimer();
+
+    // 超时兜底：若长时间未能恢复健康，重置手动重连状态，避免永久锁死
+    _manualReconnectGuard?.cancel();
+    _manualReconnectGuard = Timer(_manualReconnectGuardTimeout, () {
+      if (isManuallyReconnecting.value) {
+        debugPrint("手动重连超时兜底：重置手动重连状态，允许再次发起");
+        isManuallyReconnecting.value = false;
+      }
+    });
 
     try {
       // 临时禁止自动重连，避免 forceCloseInternal 触发自动重连
@@ -367,7 +391,11 @@ class WebSocketService {
         // 标记消息已经真正发送过，避免重复发送
         ackHelper.markAsSent(requestId);
         consumedAny = true;
-        await Future.delayed(const Duration(milliseconds: 30));
+        // 节流：队列仍有积压时短暂间隔，避免同一帧内批量发送造成后端瞬时压力
+        // 仅剩最后一条或队列已空时无需等待，保证消息即时性
+        if (_outGoingQueue.isNotEmpty) {
+          await Future.delayed(const Duration(milliseconds: 20));
+        }
       }
     } finally {
       _isConsuming = false;
@@ -382,6 +410,7 @@ class WebSocketService {
   void dispose() {
     _waitReadyTimer?.cancel();
     _clearReconnectTimer();
+    _manualReconnectGuard?.cancel();
     _healthSub.cancel();
     _eventSub.cancel();
     _ackRespSub.cancel();

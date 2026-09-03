@@ -151,156 +151,200 @@ class _ResetPwdState extends State<ResetPwd> {
                 const SizedBox(height: 32),
 
                 // 邮箱
-                TextFormField(
-                  controller: _emailCtrl,
-                  style: t.bodyStyle,
-                  decoration: InputDecoration(
-                    labelText: "邮箱",
-                    labelStyle: t.captionStyle,
-                    hintText: "请输入邮箱获取验证码",
-                    hintStyle: t.captionStyle,
-                    errorText: _emailError.value,
-                    errorStyle: TextStyle(color: t.errorColor, fontSize: 12),
-                    filled: true,
-                    fillColor: t.inputBgColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(t.inputRadius),
-                      borderSide: BorderSide(color: t.dividerColor),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      controller: _emailCtrl,
+                      style: t.bodyStyle,
+                      decoration: InputDecoration(
+                        labelText: "邮箱",
+                        labelStyle: t.captionStyle,
+                        hintText: "请输入邮箱获取验证码",
+                        hintStyle: t.captionStyle,
+                        filled: true,
+                        fillColor: t.inputBgColor,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(t.inputRadius),
+                          borderSide: BorderSide(color: _emailError.value != null ? t.errorColor : t.dividerColor),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(t.inputRadius),
+                          borderSide: BorderSide(color: _emailError.value != null ? t.errorColor : t.dividerColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(t.inputRadius),
+                          borderSide: BorderSide(color: t.primaryColor, width: 2),
+                        ),
+                        prefixIcon: Icon(Icons.email, color: t.hintTextColor),
+                        suffixIcon: _state.value == 2
+                            ? Padding(
+                                padding: const EdgeInsets.all(14.0),
+                                child: Text("${_countDown.value}s", style: t.captionStyle),
+                              )
+                            : IconButton(
+                                onPressed: _state.value == 1 ? submitEmail : null,
+                                icon: Icon(Icons.send, color: t.primaryColor),
+                                disabledColor: t.hintTextColor,
+                              ),
+                      ),
+                      onChanged: (value) {
+                        _emailError.value = CheckInput.email(value.trim());
+                        if (_state.value != 2) {
+                          _emailError.value == null
+                              ? _state.value = 1
+                              : _state.value = 0;
+                        }
+                      },
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(t.inputRadius),
-                      borderSide: BorderSide(color: t.dividerColor),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(t.inputRadius),
-                      borderSide: BorderSide(color: t.primaryColor, width: 2),
-                    ),
-                    prefixIcon: Icon(Icons.email, color: t.hintTextColor),
-                    suffixIcon: _state.value == 2
-                        ? Padding(
-                            padding: const EdgeInsets.all(14.0),
-                            child: Text("${_countDown.value}s", style: t.captionStyle),
-                          )
-                        : IconButton(
-                            onPressed: _state.value == 1 ? submitEmail : null,
-                            icon: Icon(Icons.send, color: t.primaryColor),
-                            disabledColor: t.hintTextColor,
-                          ),
-                  ),
-                  onChanged: (value) {
-                    _emailError.value = CheckInput.email(value.trim());
-                    if (_state.value != 2) {
-                      _emailError.value == null
-                          ? _state.value = 1
-                          : _state.value = 0;
-                    }
-                  },
+                    if (_emailError.value != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6, left: 12),
+                        child: Text(
+                          _emailError.value!,
+                          style: TextStyle(color: t.errorColor, fontSize: 12),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 12),
 
                 // 验证码
-                TextFormField(
-                  controller: _codeCtrl,
-                  obscureText: true,
-                  style: t.bodyStyle,
-                  decoration: InputDecoration(
-                    labelText: "验证码",
-                    labelStyle: t.captionStyle,
-                    hintText: "请输入验证码",
-                    hintStyle: t.captionStyle,
-                    errorText: _codeError.value,
-                    errorStyle: TextStyle(color: t.errorColor, fontSize: 12),
-                    filled: true,
-                    fillColor: t.inputBgColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(t.inputRadius),
-                      borderSide: BorderSide(color: t.dividerColor),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      controller: _codeCtrl,
+                      obscureText: true,
+                      style: t.bodyStyle,
+                      decoration: InputDecoration(
+                        labelText: "验证码",
+                        labelStyle: t.captionStyle,
+                        hintText: "请输入验证码",
+                        hintStyle: t.captionStyle,
+                        filled: true,
+                        fillColor: t.inputBgColor,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(t.inputRadius),
+                          borderSide: BorderSide(color: _codeError.value != null ? t.errorColor : t.dividerColor),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(t.inputRadius),
+                          borderSide: BorderSide(color: _codeError.value != null ? t.errorColor : t.dividerColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(t.inputRadius),
+                          borderSide: BorderSide(color: t.primaryColor, width: 2),
+                        ),
+                        prefixIcon: Icon(Icons.verified, color: t.hintTextColor),
+                      ),
+                      onChanged: (value) {
+                        _codeError.value = CheckInput.code(value.trim());
+                      },
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(t.inputRadius),
-                      borderSide: BorderSide(color: t.dividerColor),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(t.inputRadius),
-                      borderSide: BorderSide(color: t.primaryColor, width: 2),
-                    ),
-                    prefixIcon: Icon(Icons.verified, color: t.hintTextColor),
-                  ),
-                  onChanged: (value) {
-                    _codeError.value = CheckInput.code(value.trim());
-                  },
+                    if (_codeError.value != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6, left: 12),
+                        child: Text(
+                          _codeError.value!,
+                          style: TextStyle(color: t.errorColor, fontSize: 12),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 12),
 
                 // 新密码
-                TextFormField(
-                  controller: _pwdCtrl,
-                  obscureText: true,
-                  style: t.bodyStyle,
-                  decoration: InputDecoration(
-                    labelText: "新密码",
-                    labelStyle: t.captionStyle,
-                    hintText: "请输入新密码",
-                    hintStyle: t.captionStyle,
-                    errorText: _pwdError.value,
-                    errorStyle: TextStyle(color: t.errorColor, fontSize: 12),
-                    filled: true,
-                    fillColor: t.inputBgColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(t.inputRadius),
-                      borderSide: BorderSide(color: t.dividerColor),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      controller: _pwdCtrl,
+                      obscureText: true,
+                      style: t.bodyStyle,
+                      decoration: InputDecoration(
+                        labelText: "新密码",
+                        labelStyle: t.captionStyle,
+                        hintText: "请输入新密码",
+                        hintStyle: t.captionStyle,
+                        filled: true,
+                        fillColor: t.inputBgColor,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(t.inputRadius),
+                          borderSide: BorderSide(color: _pwdError.value != null ? t.errorColor : t.dividerColor),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(t.inputRadius),
+                          borderSide: BorderSide(color: _pwdError.value != null ? t.errorColor : t.dividerColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(t.inputRadius),
+                          borderSide: BorderSide(color: t.primaryColor, width: 2),
+                        ),
+                        prefixIcon: Icon(Icons.key, color: t.hintTextColor),
+                      ),
+                      onChanged: (value) {
+                        _pwdError.value = CheckInput.password(value);
+                      },
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(t.inputRadius),
-                      borderSide: BorderSide(color: t.dividerColor),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(t.inputRadius),
-                      borderSide: BorderSide(color: t.primaryColor, width: 2),
-                    ),
-                    prefixIcon: Icon(Icons.key, color: t.hintTextColor),
-                  ),
-                  onChanged: (value) {
-                    _pwdError.value = CheckInput.password(value);
-                  },
+                    if (_pwdError.value != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6, left: 12),
+                        child: Text(
+                          _pwdError.value!,
+                          style: TextStyle(color: t.errorColor, fontSize: 12),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 12),
 
                 // 确认密码
-                TextFormField(
-                  controller: _confirmPwdCtrl,
-                  obscureText: true,
-                  style: t.bodyStyle,
-                  decoration: InputDecoration(
-                    labelText: "确认密码",
-                    labelStyle: t.captionStyle,
-                    hintText: "再次输入新密码",
-                    hintStyle: t.captionStyle,
-                    errorText: _confirmPwdError.value,
-                    errorStyle: TextStyle(color: t.errorColor, fontSize: 12),
-                    filled: true,
-                    fillColor: t.inputBgColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(t.inputRadius),
-                      borderSide: BorderSide(color: t.dividerColor),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      controller: _confirmPwdCtrl,
+                      obscureText: true,
+                      style: t.bodyStyle,
+                      decoration: InputDecoration(
+                        labelText: "确认密码",
+                        labelStyle: t.captionStyle,
+                        hintText: "再次输入新密码",
+                        hintStyle: t.captionStyle,
+                        filled: true,
+                        fillColor: t.inputBgColor,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(t.inputRadius),
+                          borderSide: BorderSide(color: _confirmPwdError.value != null ? t.errorColor : t.dividerColor),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(t.inputRadius),
+                          borderSide: BorderSide(color: _confirmPwdError.value != null ? t.errorColor : t.dividerColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(t.inputRadius),
+                          borderSide: BorderSide(color: t.primaryColor, width: 2),
+                        ),
+                        prefixIcon: Icon(Icons.confirmation_num, color: t.hintTextColor),
+                      ),
+                      onChanged: (value) {
+                        if (value != _pwdCtrl.text) {
+                          _confirmPwdError.value = "两次密码不一致";
+                        } else {
+                          _confirmPwdError.value = null;
+                        }
+                      },
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(t.inputRadius),
-                      borderSide: BorderSide(color: t.dividerColor),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(t.inputRadius),
-                      borderSide: BorderSide(color: t.primaryColor, width: 2),
-                    ),
-                    prefixIcon: Icon(Icons.confirmation_num, color: t.hintTextColor),
-                  ),
-                  onChanged: (value) {
-                    if (value != _pwdCtrl.text) {
-                      _confirmPwdError.value = "两次密码不一致";
-                    } else {
-                      _confirmPwdError.value = null;
-                    }
-                  },
+                    if (_confirmPwdError.value != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6, left: 12),
+                        child: Text(
+                          _confirmPwdError.value!,
+                          style: TextStyle(color: t.errorColor, fontSize: 12),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 24),
 

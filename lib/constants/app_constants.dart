@@ -607,7 +607,7 @@ class AppBase {
   static const double popBoxRadius = 10;
   static const double popCloseIconSize = 30;
 
-  static const double messageCardItemHeight = 60;
+  static const double messageCardItemHeight = 64;
   static const double messageCardAvatarRadius = 50;
   static const double messageCardActionWidth = 80;
 

@@ -42,7 +42,7 @@ class AckHelper {
   // requestId -> 监听记录 timer 重试计数 原始dto
   final Map<String, AckListener> _pending = {};
 
-  static const _ackTimeOut = Duration(seconds: 8);
+  static const _ackTimeOut = Duration(seconds: 6);
   static const int maxRetryCount = 3;
   // 流放队列最大长度，防止内存泄漏
   static const int _maxRoamedListSize = 50;

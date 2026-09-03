@@ -154,6 +154,7 @@ class _MessageView extends State<MessageView>
     return Obx(() {
       final AppTheme t = _themeController.currentTheme;
       final exhausted = WebSocketService.instance.autoReconnectExhausted.value;
+      final autoReconnecting = WebSocketService.instance.autoReconnecting.value;
       final manualReconnecting =
           WebSocketService.instance.isManuallyReconnecting.value;
       final categoryInfoList =
@@ -167,24 +168,30 @@ class _MessageView extends State<MessageView>
         },
         child: Column(
           children: [
-            // 网络错误 手动重连入口
+            // 网络错误/重连状态入口
             Obx(() {
               final exhausted = WebSocketService.instance.autoReconnectExhausted.value;
+              final autoReconnecting = WebSocketService.instance.autoReconnecting.value;
               final manualReconnecting = WebSocketService.instance.isManuallyReconnecting.value;
               final backendReady = WebSocketService.instance.backendReady.value;
               final health = WebSocketService.instance.connectionHealth.value;
+              // 只要处于 自动重连中 / 手动重连中 / 重连次数耗尽 任一状态，就显示色条
+              final bool showBar = autoReconnecting || manualReconnecting || exhausted;
               final Color barColor;
               final String barText;
               final bool showSpinner;
-              if (manualReconnecting && !backendReady) {
+              if ((autoReconnecting || manualReconnecting) && !backendReady) {
+                // 正在连接/重连，后端尚未就绪
                 barColor = Colors.orange;
                 barText = "正在连接服务器…";
                 showSpinner = true;
-              } else if (manualReconnecting && backendReady && health == ConnectionHealth.unconfirmed) {
+              } else if ((autoReconnecting || manualReconnecting) && backendReady && health == ConnectionHealth.unconfirmed) {
+                // 后端已就绪，但链路健康尚未确认
                 barColor = Colors.blue;
                 barText = "正在检测链路健康…";
                 showSpinner = true;
               } else {
+                // 重连次数耗尽（或兜底状态），显示手动重连入口
                 barColor = Colors.red;
                 barText = "当前无网络，点击重新连接";
                 showSpinner = false;
@@ -192,7 +199,7 @@ class _MessageView extends State<MessageView>
               return AnimatedContainer(
                 color: t.backGroundColor,
                 duration: const Duration(milliseconds: 800),
-                height: manualReconnecting || exhausted ? 90 : 0,
+                height: showBar ? 90 : 0,
                 padding: EdgeInsets.fromLTRB(0, safeTopPadding, 0, 0),
                 child: Container(
                   color: barColor,
@@ -247,7 +254,7 @@ class _MessageView extends State<MessageView>
               color: t.secondColor,
               padding: EdgeInsets.fromLTRB(
                 3,
-                manualReconnecting || exhausted ? 0 : safeTopPadding,
+                manualReconnecting || autoReconnecting || exhausted ? 0 : safeTopPadding,
                 0,
                 0,
               ),
@@ -604,6 +611,7 @@ class _MessageView extends State<MessageView>
                   messageController: _messageController,
                   themeController: _themeController,
                   scrollDirection: Axis.vertical,
+                  padding: const EdgeInsets.only(bottom: 80),
                   ),
                 ),
                 // 搜索结果覆盖层 AnimatedContainer 高度变化

@@ -171,34 +171,46 @@ class _Login extends State<Login> with SingleTickerProviderStateMixin {
 
                     // 邮箱输入框
                     Obx(() {
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: theme.inputBgColor,
-                          borderRadius: BorderRadius.circular(theme.inputRadius),
-                          border: Border.all(
-                            color: _emailError.value != null
-                                ? theme.errorColor
-                                : theme.dividerColor,
-                            width: 1,
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TextFormField(
+                            controller: _emailCtrl,
+                            keyboardType: TextInputType.emailAddress,
+                            style: theme.bodyStyle,
+                            decoration: InputDecoration(
+                              labelText: "邮箱",
+                              hintText: "请输入邮箱",
+                              prefixIcon: Icon(Icons.email_outlined, color: theme.hintTextColor),
+                              filled: true,
+                              fillColor: theme.inputBgColor,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(theme.inputRadius),
+                                borderSide: BorderSide(color: _emailError.value != null ? theme.errorColor : theme.dividerColor),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(theme.inputRadius),
+                                borderSide: BorderSide(color: _emailError.value != null ? theme.errorColor : theme.dividerColor),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(theme.inputRadius),
+                                borderSide: BorderSide(color: theme.primaryColor, width: 2),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            ),
+                            onChanged: (value) {
+                              _emailError.value = CheckInput.email(value.trim());
+                            },
                           ),
-                        ),
-                        child: TextFormField(
-                          controller: _emailCtrl,
-                          keyboardType: TextInputType.emailAddress,
-                          style: theme.bodyStyle,
-                          decoration: InputDecoration(
-                            labelText: "邮箱",
-                            hintText: "请输入邮箱",
-                            errorText: _emailError.value,
-                            errorStyle: TextStyle(color: theme.errorColor, fontSize: 12),
-                            prefixIcon: Icon(Icons.email_outlined, color: theme.hintTextColor),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                          ),
-                          onChanged: (value) {
-                            _emailError.value = CheckInput.email(value.trim());
-                          },
-                        ),
+                          if (_emailError.value != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6, left: 12),
+                              child: Text(
+                                _emailError.value!,
+                                style: TextStyle(color: theme.errorColor, fontSize: 12),
+                              ),
+                            ),
+                        ],
                       );
                     }),
 
@@ -206,44 +218,56 @@ class _Login extends State<Login> with SingleTickerProviderStateMixin {
 
                     // 密码输入框
                     Obx(() {
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: theme.inputBgColor,
-                          borderRadius: BorderRadius.circular(theme.inputRadius),
-                          border: Border.all(
-                            color: _pwdError.value != null
-                                ? theme.errorColor
-                                : theme.dividerColor,
-                            width: 1,
-                          ),
-                        ),
-                        child: TextFormField(
-                          controller: _pwdCtrl,
-                          obscureText: _obscurePwd.value,
-                          style: theme.bodyStyle,
-                          decoration: InputDecoration(
-                            labelText: "密码",
-                            hintText: "请输入密码",
-                            errorText: _pwdError.value,
-                            errorStyle: TextStyle(color: theme.errorColor, fontSize: 12),
-                            prefixIcon: Icon(Icons.lock_outline, color: theme.hintTextColor),
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                _obscurePwd.value
-                                    ? Icons.visibility_off_outlined
-                                    : Icons.visibility_outlined,
-                                color: theme.hintTextColor,
-                                size: 20,
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TextFormField(
+                            controller: _pwdCtrl,
+                            obscureText: _obscurePwd.value,
+                            style: theme.bodyStyle,
+                            decoration: InputDecoration(
+                              labelText: "密码",
+                              hintText: "请输入密码",
+                              prefixIcon: Icon(Icons.lock_outline, color: theme.hintTextColor),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePwd.value
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                  color: theme.hintTextColor,
+                                  size: 20,
+                                ),
+                                onPressed: () => _obscurePwd.value = !_obscurePwd.value,
                               ),
-                              onPressed: () => _obscurePwd.value = !_obscurePwd.value,
+                              filled: true,
+                              fillColor: theme.inputBgColor,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(theme.inputRadius),
+                                borderSide: BorderSide(color: _pwdError.value != null ? theme.errorColor : theme.dividerColor),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(theme.inputRadius),
+                                borderSide: BorderSide(color: _pwdError.value != null ? theme.errorColor : theme.dividerColor),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(theme.inputRadius),
+                                borderSide: BorderSide(color: theme.primaryColor, width: 2),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                             ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            onChanged: (value) {
+                              _pwdError.value = CheckInput.password(value);
+                            },
                           ),
-                          onChanged: (value) {
-                            _pwdError.value = CheckInput.password(value);
-                          },
-                        ),
+                          if (_pwdError.value != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6, left: 12),
+                              child: Text(
+                                _pwdError.value!,
+                                style: TextStyle(color: theme.errorColor, fontSize: 12),
+                              ),
+                            ),
+                        ],
                       );
                     }),
 

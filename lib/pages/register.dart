@@ -149,45 +149,59 @@ class _RegisterState extends State<Register> with SingleTickerProviderStateMixin
   }) {
     return Obx(() {
       final AppTheme t = _themeController.currentTheme;
-      return Container(
-        decoration: BoxDecoration(
-          color: t.inputBgColor,
-          borderRadius: BorderRadius.circular(t.inputRadius),
-          border: Border.all(
-            color: error.value != null ? t.errorColor : t.dividerColor,
-            width: 1,
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextFormField(
+            controller: controller,
+            obscureText: obscureText && (obscureController?.value ?? true),
+            keyboardType: keyboardType,
+            style: t.bodyStyle,
+            decoration: InputDecoration(
+              labelText: label,
+              labelStyle: t.captionStyle,
+              hintText: hint,
+              hintStyle: t.captionStyle,
+              prefixIcon: Icon(icon, color: t.hintTextColor, size: 20),
+              suffixIcon: obscureController != null
+                  ? IconButton(
+                      icon: Icon(
+                        obscureController.value
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: t.hintTextColor,
+                        size: 18,
+                      ),
+                      onPressed: onToggleObscure,
+                    )
+                  : suffix,
+              filled: true,
+              fillColor: t.inputBgColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(t.inputRadius),
+                borderSide: BorderSide(color: error.value != null ? t.errorColor : t.dividerColor),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(t.inputRadius),
+                borderSide: BorderSide(color: error.value != null ? t.errorColor : t.dividerColor),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(t.inputRadius),
+                borderSide: BorderSide(color: t.primaryColor, width: 2),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            ),
+            onChanged: onChanged,
           ),
-        ),
-        child: TextFormField(
-          controller: controller,
-          obscureText: obscureText && (obscureController?.value ?? true),
-          keyboardType: keyboardType,
-          style: t.bodyStyle,
-          decoration: InputDecoration(
-            labelText: label,
-            labelStyle: t.captionStyle,
-            hintText: hint,
-            hintStyle: t.captionStyle,
-            errorText: error.value,
-            errorStyle: TextStyle(color: t.errorColor, fontSize: 12),
-            prefixIcon: Icon(icon, color: t.hintTextColor, size: 20),
-            suffixIcon: obscureController != null
-                ? IconButton(
-                    icon: Icon(
-                      obscureController.value
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                      color: t.hintTextColor,
-                      size: 18,
-                    ),
-                    onPressed: onToggleObscure,
-                  )
-                : suffix,
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          ),
-          onChanged: onChanged,
-        ),
+          if (error.value != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, left: 12),
+              child: Text(
+                error.value!,
+                style: TextStyle(color: t.errorColor, fontSize: 12),
+              ),
+            ),
+        ],
       );
     });
   }
@@ -275,60 +289,68 @@ class _RegisterState extends State<Register> with SingleTickerProviderStateMixin
 
                     // 邮箱 + 验证码按钮
                     Obx(() {
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: t.inputBgColor,
-                          borderRadius: BorderRadius.circular(t.inputRadius),
-                          border: Border.all(
-                            color: _emailError.value != null ? t.errorColor : t.dividerColor,
-                            width: 1,
-                          ),
-                        ),
-                        child: TextFormField(
-                          controller: _emailCtrl,
-                          keyboardType: TextInputType.emailAddress,
-                          style: t.bodyStyle,
-                          decoration: InputDecoration(
-                            labelText: "邮箱",
-                            labelStyle: t.captionStyle,
-                            hintText: "请输入邮箱获取验证码",
-                            hintStyle: t.captionStyle,
-                            errorText: _emailError.value,
-                            errorStyle: TextStyle(color: t.errorColor, fontSize: 12),
-                            prefixIcon: Icon(Icons.email_outlined, color: t.hintTextColor, size: 20),
-                            suffixIcon: _state.value == 2
-                                ? Padding(
-                                    padding: const EdgeInsets.all(14.0),
-                                    child: Text(
-                                      "${_countDown.value}s",
-                                      style: t.captionStyle,
-                                    ),
-                                  )
-                                : TextButton(
-                                    onPressed: _state.value == 1 ? submitEmail : null,
-                                    child: Text(
-                                      "获取验证码",
-                                      style: TextStyle(
-                                        color: _state.value == 1 ? t.primaryColor : t.hintTextColor,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TextFormField(
+                            controller: _emailCtrl,
+                            keyboardType: TextInputType.emailAddress,
+                            style: t.bodyStyle,
+                            decoration: InputDecoration(
+                              labelText: "邮箱",
+                              labelStyle: t.captionStyle,
+                              hintText: "请输入邮箱获取验证码",
+                              hintStyle: t.captionStyle,
+                              prefixIcon: Icon(Icons.email_outlined, color: t.hintTextColor, size: 20),
+                              suffixIcon: _state.value == 2
+                                  ? Padding(
+                                      padding: const EdgeInsets.all(14.0),
+                                      child: Text(
+                                        "${_countDown.value}s",
+                                        style: t.captionStyle,
                                       ),
+                                    )
+                                  : IconButton(
+                                      onPressed: _state.value == 1 ? submitEmail : null,
+                                      icon: Icon(Icons.send, color: t.primaryColor),
+                                      disabledColor: t.hintTextColor,
                                     ),
-                                  ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                          ),
-                          onChanged: (value) {
-                            _emailError.value = CheckInput.email(value.trim());
-                            if (_state.value != 2) {
-                              if (_emailError.value == null) {
-                                _state.value = 1;
-                              } else {
-                                _state.value = 0;
+                              filled: true,
+                              fillColor: t.inputBgColor,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(t.inputRadius),
+                                borderSide: BorderSide(color: _emailError.value != null ? t.errorColor : t.dividerColor),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(t.inputRadius),
+                                borderSide: BorderSide(color: _emailError.value != null ? t.errorColor : t.dividerColor),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(t.inputRadius),
+                                borderSide: BorderSide(color: t.primaryColor, width: 2),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            ),
+                            onChanged: (value) {
+                              _emailError.value = CheckInput.email(value.trim());
+                              if (_state.value != 2) {
+                                if (_emailError.value == null) {
+                                  _state.value = 1;
+                                } else {
+                                  _state.value = 0;
+                                }
                               }
-                            }
-                          },
-                        ),
+                            },
+                          ),
+                          if (_emailError.value != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6, left: 12),
+                              child: Text(
+                                _emailError.value!,
+                                style: TextStyle(color: t.errorColor, fontSize: 12),
+                              ),
+                            ),
+                        ],
                       );
                     }),
                     const SizedBox(height: 14),

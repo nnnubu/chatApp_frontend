@@ -325,7 +325,7 @@ class _LibraryViewState extends State<LibraryView>
       onRefresh: _bookController.refreshBooks,
       child: GridView.builder(
         controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(10, 10, 10, 20),
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 80),
         itemCount: _bookController.books.length +
             (_bookController.booksLoading.value ? 1 : 0),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -357,7 +357,7 @@ class _LibraryViewState extends State<LibraryView>
       onRefresh: _bookController.refreshShelf,
       child: GridView.builder(
         controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(10, 10, 10, 20),
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 80),
         itemCount: _bookController.shelf.length +
             (_bookController.shelfLoading.value ? 1 : 0),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
