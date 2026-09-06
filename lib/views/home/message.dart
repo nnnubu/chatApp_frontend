@@ -265,7 +265,6 @@ class _MessageView extends State<MessageView>
                     height: AppBase.topBarHeight,
                     width: screenWidth - AppBase.menuIconWidth,
                     decoration: BoxDecoration(
-                      color: t.thirdColor,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: TextFormField(
@@ -276,10 +275,10 @@ class _MessageView extends State<MessageView>
                       controller: _searchController,
                       decoration: InputDecoration(
                         hintText: "搜索",
-                        // contentPadding: EdgeInsets.symmetric(
-                        //   horizontal: 5,
-                        //   vertical: 10,
-                        // ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 10,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                           borderSide: BorderSide.none,

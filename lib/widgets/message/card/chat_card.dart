@@ -36,11 +36,18 @@ class _ChatCardState extends State<ChatCard> {
     super.dispose();
   }
 
-  /// 分类列表消息摘要：图片消息显示 [图片]
+  /// 分类列表消息摘要：图片显示 [图片] 视频显示 [视频] 语音显示 [语音] 已撤回显示 [撤回了一条消息]
   String _messagePreview(ChatItem item) {
+    if (item.recalled.value) {
+      return '[撤回了一条消息]';
+    }
     if (item.contentType == ContentType.image.code ||
         ImageMessageContent.tryParse(item.content) != null) {
       return '[图片]';
+    }
+    // 视频优先于语音判断：视频 content 也是 {"url":...}，会被语音解析误判
+    if (item.contentType == ContentType.video.code) {
+      return '[视频]';
     }
     if (item.contentType == ContentType.voice.code ||
         VoiceMessageContent.tryParse(item.content) != null) {

@@ -43,6 +43,9 @@ class MessageDto {
       case "pullCategory":
         rawType = MessageType.pullCategory;
         break;
+      case "recall":
+        rawType = MessageType.recall;
+        break;
       default:
         rawType = MessageType.nil;
         break;

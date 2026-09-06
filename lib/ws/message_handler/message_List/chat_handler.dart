@@ -21,7 +21,8 @@ class ChatHandler extends BaseMessageHanlder {
       conversationUid: data["conversationUid"],
       content: data["content"],
       contentType: (data["contentType"] as num?)?.toInt() ?? 0,
-      isInsertToTop: data["isInsertToTop"]
+      isInsertToTop: data["isInsertToTop"],
+      recalled: data["recalled"] == true,
     );
     return MessageListEvent(item: chatMessageItem);
   }

@@ -297,6 +297,27 @@ class UserService {
       return CommonState(isSuccess: false, msg: errMsg);
     }
   }
+
+  /// 撤回消息：成功由 Dio 拦截器放行，失败由拦截器 reject（message 为后端错误信息）
+  static Future<CommonState> recallMessage(String msgId, String conversationUid) async {
+    try {
+      await UserApi.recallMessage(msgId, conversationUid);
+      return CommonState(isSuccess: true, msg: "撤回成功");
+    } catch (e) {
+      String errMsg = ErrorMsgConstant.networkDefaultErr;
+      if (e is DioException) {
+        // 优先取后端返回的业务错误信息（如"只能撤回自己发送的消息"）
+        final respData = e.response?.data;
+        if (respData is Map && respData["message"] is String &&
+            (respData["message"] as String).isNotEmpty) {
+          errMsg = respData["message"] as String;
+        } else {
+          errMsg = e.message ?? ErrorMsgConstant.networkDefaultErr;
+        }
+      }
+      return CommonState(isSuccess: false, msg: errMsg);
+    }
+  }
   static Future<List<OtherUsers>?> searchFriends(String keyword) async {
     try {
       final res = await UserApi.searchFriends(keyword);

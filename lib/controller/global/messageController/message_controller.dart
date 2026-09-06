@@ -11,6 +11,7 @@ import 'package:chatapp/widgets/message/item_info/chat_list/chat_item.dart';
 import 'package:chatapp/widgets/message/item_info/message_list/friend_apply_item.dart';
 import 'package:chatapp/dto/dto_message.dart';
 import 'package:chatapp/ws/message_dispatcher.dart';
+import 'package:chatapp/ws/message_handler/message_List/recall_handler.dart';
 import 'package:get/get.dart';
 
 /// 搜索结果列表操作事件
@@ -62,6 +63,34 @@ class MessageController extends GetxController {
     }
   }
 
+  /// 撤回事件：把本地聊天列表与会话预览中对应消息标记为已撤回
+  void _markMessageRecalled(RecallEvent event) {
+    if (event.conversationUid.isEmpty) return;
+    // 挂起队列中也可能存在该消息（用户看历史时对方消息暂未插入列表）
+    final pending = _pendingChatItems[event.conversationUid];
+    if (pending != null) {
+      final p = pending.firstWhereOrNull((e) => e.msgId == event.msgId);
+      if (p != null) p.recalled.value = true;
+    }
+    // 聊天列表（chatList）
+    final chatState = chatList.getConversationState(event.conversationUid);
+    if (chatState.messageList.isNotEmpty) {
+      final chatMsg = chatState.messageList
+          .firstWhereOrNull((e) => e.msgId == event.msgId);
+      if (chatMsg != null) {
+        chatMsg.recalled.value = true;
+      }
+    }
+    // 会话预览（messageList）
+    final previewMsg = messageList.dataSource
+        .whereType<ChatItem>()
+        .toList()
+        .firstWhereOrNull((e) => e.msgId == event.msgId);
+    if (previewMsg != null) {
+      previewMsg.recalled.value = true;
+    }
+  }
+
   // 初始化时订阅消息分发总线的数据包装推送
   MessageController() {
     super.onInit();
@@ -108,6 +137,9 @@ class MessageController extends GetxController {
             );
           }
         }
+      } else if (event is RecallEvent) {
+        // 撤回事件：把本地聊天列表与会话预览中对应消息标记为已撤回
+        _markMessageRecalled(event);
       } else if (event is CategoryListEvent) {
         if (event.info != null) {
           final CategoryInfo infoSnapShot = event.info!;

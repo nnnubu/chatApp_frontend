@@ -129,6 +129,30 @@ class UserApi {
     return res.data as Map<String, dynamic>?;
   }
 
+  /// 聊天视频上传：返回 {url}
+  static Future<Map<String, dynamic>?> uploadChatVideo(
+    Uint8List bytes,
+    String ext,
+  ) async {
+    String fileName =
+        "chatVideo${DateTime.now().millisecondsSinceEpoch}.${ext.isEmpty ? 'mp4' : ext}";
+    MultipartFile file = MultipartFile.fromBytes(
+      bytes,
+      filename: fileName,
+      contentType: DioMediaType.parse("video/mp4"),
+    );
+    FormData formData = FormData.fromMap({"file": file});
+    Response res = await DioUtil.dio.post(
+      "auth/uploadChatVideo",
+      data: formData,
+      options: Options(
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
+    return res.data as Map<String, dynamic>?;
+  }
+
   static Future<Map<String, dynamic>?> updateInfo(
     Map<String, dynamic> body,
   ) async {
@@ -229,6 +253,18 @@ class UserApi {
   ) async {
     Response res = await DioUtil.dio.post("auth/markReadStatus",data: {"conversationUid" : conversationUid});
     return res.data as Map<String,dynamic>?;
+  }
+
+  /// 撤回消息（仅发送者可撤回自己发送的消息）
+  static Future<Map<String, dynamic>?> recallMessage(
+    String msgId,
+    String conversationUid,
+  ) async {
+    Response res = await DioUtil.dio.post(
+      "auth/recallMessage",
+      data: {"msgId": msgId, "conversationUid": conversationUid},
+    );
+    return res.data as Map<String, dynamic>?;
   }
 
   static Future<Map<String, dynamic>?> searchFriends(String keyword) async {

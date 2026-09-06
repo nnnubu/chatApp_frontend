@@ -51,11 +51,14 @@ class ChatList {
       content: newItem.content,
       contentType: newItem.contentType,
       localImagePath: newItem.localImagePath,
+      localVoicePath: newItem.localVoicePath,
+      localVideoPath: newItem.localVideoPath,
       senderUid: newItem.senderUid,
       msgId: newItem.msgId,
       requestId: newItem.requestId,
       sendStatus: newItem.sendStatus.value,
       isInsertToTop: newItem.isInsertToTop,
+      recalled: newItem.recalled.value,
     );
 
     if (!_chatMap.containsKey(copyItem.conversationUid)) {

@@ -14,6 +14,8 @@ class ChatItem extends BaseInfoItem {
   String? localVoicePath;
   // 本地语音时长（秒）：重发重新上传时需要
   int localVoiceDuration = 0;
+  // 本地视频路径：视频消息乐观渲染阶段（上传完成前）用于展示本地视频占位
+  String? localVideoPath;
   // 内容版本号：图片上传完成后更新 content 时自增，触发气泡从本地图切换到网络图
   final RxInt contentVersion = 0.obs;
   final RxInt unReadCount;
@@ -24,6 +26,7 @@ class ChatItem extends BaseInfoItem {
   bool isInsertToTop; // 是否插入队首
   String? requestId; // 前端发送时生成，用于 ACK 追踪（重发时会更新）
   final Rx<AckStatus> sendStatus; // 消息发送状态
+  final RxBool recalled; // 是否已撤回（撤回后仅展示提示文案，不展示原内容）
 
   ChatItem({
     required super.uid,
@@ -38,10 +41,13 @@ class ChatItem extends BaseInfoItem {
     this.localImagePath,
     this.localVoicePath,
     this.localVoiceDuration = 0,
+    this.localVideoPath,
     this.isInsertToTop = false,
     this.requestId,
     AckStatus sendStatus = AckStatus.success,
+    bool recalled = false,
     int unReadCount = 1,
   })  : unReadCount = unReadCount.obs,
-        sendStatus = sendStatus.obs;
+        sendStatus = sendStatus.obs,
+        recalled = recalled.obs;
 }

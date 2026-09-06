@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:chatapp/ws/message_handler/category_list/category_pull_handler.dart';
 import 'package:chatapp/ws/message_handler/message_List/chat_handler.dart';
 import 'package:chatapp/ws/message_handler/message_List/friend_apply_handler.dart';
+import 'package:chatapp/ws/message_handler/message_List/recall_handler.dart';
 import 'package:flutter/material.dart';
 
 // websocket 消息类型 或 请求返回类型
@@ -16,6 +17,7 @@ enum MessageType {
   markRead,
   ack,
   pullCategory,
+  recall,
   nil,
 }
 
@@ -686,4 +688,4 @@ class DeviceSize {
   }
 }
 
-final DefaultMessageHandlers = [FriendApplyHandler(),CategoryPullHandler(),ChatHandler()];
+final DefaultMessageHandlers = [FriendApplyHandler(),CategoryPullHandler(),ChatHandler(),RecallHandler()];

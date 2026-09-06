@@ -7,7 +7,9 @@ import 'package:chatapp/widgets/app_image.dart';
 import 'package:chatapp/widgets/message/item_info/chat_list/chat_item.dart';
 import 'package:chatapp/widgets/message/item_info/chat_list/image_message.dart';
 import 'package:chatapp/widgets/message/item_info/chat_list/voice_message.dart';
+import 'package:chatapp/widgets/message/item_info/chat_list/video_message.dart';
 import 'package:chatapp/widgets/voice_bubble.dart';
+import 'package:chatapp/widgets/video_bubble.dart';
 import 'package:chatapp/ws/ack_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -17,12 +19,14 @@ class ChatItemCard extends StatefulWidget {
   final MainAxisAlignment axis;
   final VoidCallback? onResend; // 重发回调
   final VoidCallback? onDelete; // 删除回调（长按菜单）
+  final VoidCallback? onRecall; // 撤回回调（长按菜单，仅自己发且未撤回）
   const ChatItemCard({
     super.key,
     required this.item,
     required this.axis,
     this.onResend,
     this.onDelete,
+    this.onRecall,
   });
 
   @override
@@ -57,9 +61,65 @@ class _ChatItemCardState extends State<ChatItemCard>
     super.dispose();
   }
 
-  /// 气泡内容构建：文本 / 图片 分支
+  /// 已撤回消息：居中灰色提示文字，不带气泡背景（微信风格）
+  Widget _buildRecalledBubble(AppTheme t, bool isSelf) {
+    return Text(
+      isSelf ? '你撤回了一条消息' : '对方撤回了一条消息',
+      style: TextStyle(
+        fontSize: 12,
+        color: t.hintTextColor,
+        height: 1.4,
+      ),
+    );
+  }
+
+  /// 气泡内容构建：文本 / 图片 / 视频 分支
   Widget _buildBubbleContent(ChatItem item, AppTheme t, bool isSelf,
       double maxWidth, BorderRadius bubbleRadius) {
+    // ===== 视频消息分支（优先判断，避免视频 JSON 因含 url 字段被误判为图片）=====
+    if (item.contentType == ContentType.video.code) {
+      final VideoMessageContent? video =
+          VideoMessageContent.tryParse(item.content);
+      if (video != null) {
+        // content 解析成功（已上传）：显示网络视频气泡
+        return VideoBubble(
+          key: ValueKey('video_net_${video.url}'),
+          url: video.url,
+          isSelf: isSelf,
+        );
+      }
+      // content 未解析成功（上传中/上传失败）：
+      // 本地视频文件仍在，显示本地视频占位（可试播）
+      if (item.localVideoPath != null && item.localVideoPath!.isNotEmpty) {
+        return VideoBubble(
+          key: ValueKey('video_local_${item.localVideoPath}'),
+          url: item.localVideoPath!,
+          isSelf: isSelf,
+          localPath: item.localVideoPath,
+        );
+      }
+      // 既无 content 也无本地文件（极端情况）：显示失败占位
+      final bool videoUploadFailed =
+          item.sendStatus.value == AckStatus.roamed;
+      return Container(
+        width: 150,
+        height: 100,
+        decoration: BoxDecoration(
+          color: isSelf ? t.primaryColor : t.secondColor,
+          borderRadius: bubbleRadius,
+        ),
+        child: Center(
+          child: videoUploadFailed
+              ? const Icon(Icons.error_outline, size: 20, color: Colors.white)
+              : const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+        ),
+      );
+    }
+
     // ===== 语音消息分支（优先判断，避免语音 JSON 因含 url 字段被误判为图片）=====
     if (item.contentType == ContentType.voice.code) {
       final VoiceMessageContent? voice = VoiceMessageContent.tryParse(item.content);
@@ -205,15 +265,15 @@ class _ChatItemCardState extends State<ChatItemCard>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 操作项：撤回（仅自己发的）
-              if (widget.axis == MainAxisAlignment.end)
+              // 操作项：撤回（仅自己发的 且 未撤回）
+              if (widget.axis == MainAxisAlignment.end &&
+                  !widget.item.recalled.value)
                 ListTile(
                   leading: Icon(Icons.reply, color: _themeController.currentTheme.primaryColor),
                   title: const Text('撤回'),
                   onTap: () {
                     Navigator.pop(ctx);
-                    // 撤回逻辑预留，后续接入服务端撤回
-                    showTipSnackbar(msg: '撤回功能开发中', isSuccess: false);
+                    widget.onRecall?.call();
                   },
                 ),
               // 删除
@@ -298,41 +358,49 @@ class _ChatItemCardState extends State<ChatItemCard>
             );
 
       final bool isImage = widget.item.contentType == ContentType.image.code;
-      // 语音消息与图片一样使用紧凑 padding，避免固定高度气泡 + 外层 padding 叠加溢出
+      // 语音/图片/视频消息使用紧凑 padding，避免固定高度气泡 + 外层 padding 叠加溢出
       final bool isMediaBubble = isImage ||
-          widget.item.contentType == ContentType.voice.code;
-      final bubble = GestureDetector(
-        onTapDown: (_) => _pressController.forward(),
-        onTapUp: (_) => _pressController.reverse(),
-        onTapCancel: () => _pressController.reverse(),
-        onLongPress: _showMessageActions,
-        child: ScaleTransition(
-          scale: _pressScale,
-          child: Container(
-            padding: isMediaBubble
-                ? const EdgeInsets.all(4)
-                : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            constraints: BoxConstraints(
-              maxWidth: screenWidth,
-              minHeight: 36,
-            ),
-            decoration: BoxDecoration(
-              borderRadius: bubbleRadius,
-              color: isMediaBubble ? Colors.transparent : (isSelf ? t.primaryColor : t.secondColor),
-              boxShadow: isMediaBubble
-                  ? null
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-            ),
-            child: _buildBubbleContent(widget.item, t, isSelf, screenWidth, bubbleRadius),
-          ),
-        ),
-      );
+          widget.item.contentType == ContentType.voice.code ||
+          widget.item.contentType == ContentType.video.code;
+      // 已撤回：不展示原内容，替换为灰色提示文字（仍可长按删除）
+      final bool isRecalled = widget.item.recalled.value;
+      final Widget bubble = isRecalled
+          ? GestureDetector(
+              onLongPress: _showMessageActions,
+              child: _buildRecalledBubble(t, isSelf),
+            )
+          : GestureDetector(
+              onTapDown: (_) => _pressController.forward(),
+              onTapUp: (_) => _pressController.reverse(),
+              onTapCancel: () => _pressController.reverse(),
+              onLongPress: _showMessageActions,
+              child: ScaleTransition(
+                scale: _pressScale,
+                child: Container(
+                  padding: isMediaBubble
+                      ? const EdgeInsets.all(4)
+                      : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  constraints: BoxConstraints(
+                    maxWidth: screenWidth,
+                    minHeight: 36,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: bubbleRadius,
+                    color: isMediaBubble ? Colors.transparent : (isSelf ? t.primaryColor : t.secondColor),
+                    boxShadow: isMediaBubble
+                        ? null
+                        : [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                  ),
+                  child: _buildBubbleContent(widget.item, t, isSelf, screenWidth, bubbleRadius),
+                ),
+              ),
+            );
 
       final avatar = GestureDetector(
         onTapDown: (_) => _pressController.forward(),
@@ -364,7 +432,9 @@ class _ChatItemCardState extends State<ChatItemCard>
           mainAxisAlignment: widget.axis,
           children: isSelf
               ? [
-                  _StatusIndicator(item: widget.item, theme: t, onResend: widget.onResend),
+                  // 已撤回消息不显示发送状态指示器
+                  if (!isRecalled)
+                    _StatusIndicator(item: widget.item, theme: t, onResend: widget.onResend),
                   const SizedBox(width: 4),
                   bubble,
                   const SizedBox(width: 8),

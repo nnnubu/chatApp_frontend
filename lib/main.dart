@@ -13,6 +13,7 @@ import 'package:chatapp/pages/splash.dart';
 import 'package:chatapp/dto/dto_base.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -116,6 +117,13 @@ class MyApp extends StatelessWidget {
 
         title: 'ChatApp',
         debugShowCheckedModeBanner: false,
+        // 应用本地化：强制中文（含 Android 系统相册选择器等原生界面跟随应用语言）
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        supportedLocales: const [
+          Locale('zh', 'CN'),
+          Locale('en'),
+        ],
+        locale: const Locale('zh', 'CN'),
         // home:  Splash(),
       );
     });
