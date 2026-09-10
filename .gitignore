@@ -45,3 +45,6 @@ app.*.map.json
 /android/app/release
 
 *.md
+# 本地后端地址配置（含公网IP，不提交）
+lib/api/config.dart
+
