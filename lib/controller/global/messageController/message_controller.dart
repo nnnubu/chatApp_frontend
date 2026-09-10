@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:chatapp/cache/cache_keys.dart';
 import 'package:chatapp/cache/isar_cache_service.dart';
+import 'package:chatapp/cache/message_cache_service.dart';
 import 'package:chatapp/controller/global/messageController/base.dart';
 import 'package:chatapp/controller/global/messageController/categoryList/category_list.dart';
 import 'package:chatapp/controller/global/messageController/chatList/chat_list.dart';
@@ -90,6 +91,10 @@ class MessageController extends GetxController {
         .firstWhereOrNull((e) => e.msgId == event.msgId);
     if (previewMsg != null) {
       previewMsg.recalled.value = true;
+    }
+    // 阶段三：同步更新本地消息缓存中的撤回状态（离线时撤回标记也生效）
+    if (event.msgId.isNotEmpty) {
+      unawaited(MessageCacheService.instance.markRecalled(event.msgId));
     }
   }
 

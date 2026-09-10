@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:chatapp/cache/message_cache_service.dart';
 import 'package:chatapp/constants/app_constants.dart';
 import 'package:chatapp/widgets/message/item_info/chat_list/chat_item.dart';
 import 'package:chatapp/dto/dto_message.dart';
@@ -24,6 +26,18 @@ class ChatHandler extends BaseMessageHanlder {
       isInsertToTop: data["isInsertToTop"],
       recalled: data["recalled"] == true,
     );
+
+    // 阶段三：新消息到达写入本地消息缓存（离线时兜底渲染）
+    final String? conversationUid = data["conversationUid"];
+    if (conversationUid != null && conversationUid.isNotEmpty) {
+      unawaited(MessageCacheService.instance.saveMessage(conversationUid, {
+        "msgType": "chat",
+        "msgId": msgId,
+        "requestId": dto.requestId,
+        "data": data,
+      }));
+    }
+
     return MessageListEvent(item: chatMessageItem);
   }
 

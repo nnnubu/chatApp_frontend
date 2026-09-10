@@ -438,38 +438,90 @@ class _MessageView extends State<MessageView>
                           },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 5),
+                            // FittedBox(scaleDown)：分类栏展开动画中间态容器高度不足时
+                            // 整体等比缩放避免 RenderFlex 溢出，展开完成后恢复原始尺寸
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Stack(
+                                    children: [
+                                      Container(
+                                        width: 42,
+                                        height: 42,
+                                        clipBehavior: Clip.hardEdge,
+                                        decoration: const BoxDecoration(
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: AppImage(
+                                          imageUrl: item.avatarUrl,
+                                          fit: BoxFit.cover,
+                                          type: AppImageType.avatar,
+                                        ),
+                                      ),
+                                      if (item.isOnline)
+                                        Positioned(
+                                          bottom: 0,
+                                          right: 0,
+                                          child: Container(
+                                            height: AppBase.onlineRadius,
+                                            width: AppBase.onlineRadius,
+                                            decoration: BoxDecoration(
+                                              color: AppBase.onlineSign,
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  SizedBox(
+                                    width: 56,
+                                    child: Text(
+                                      item.nickname,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: t.fontColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  deleteItemBuilder: (item, animation) {
+                    return SizeTransition(
+                      sizeFactor: animation,
+                      axis: Axis.horizontal,
+                      child: FadeTransition(
+                        opacity: animation,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 5),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Stack(
-                                  children: [
-                                    Container(
-                                      width: 42,
-                                      height: 42,
-                                      clipBehavior: Clip.hardEdge,
-                                      decoration: const BoxDecoration(
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: AppImage(
-                                        imageUrl: item.avatarUrl,
-                                        fit: BoxFit.cover,
-                                        type: AppImageType.avatar,
-                                      ),
-                                    ),
-                                    if (item.isOnline)
-                                      Positioned(
-                                        bottom: 0,
-                                        right: 0,
-                                        child: Container(
-                                          height: AppBase.onlineRadius,
-                                          width: AppBase.onlineRadius,
-                                          decoration: BoxDecoration(
-                                            color: AppBase.onlineSign,
-                                            shape: BoxShape.circle,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
+                                Container(
+                                  width: 42,
+                                  height: 42,
+                                  clipBehavior: Clip.hardEdge,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: AppImage(
+                                    imageUrl: item.avatarUrl,
+                                    fit: BoxFit.cover,
+                                    type: AppImageType.avatar,
+                                  ),
                                 ),
                                 const SizedBox(height: 2),
                                 SizedBox(
@@ -487,50 +539,6 @@ class _MessageView extends State<MessageView>
                                 ),
                               ],
                             ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                  deleteItemBuilder: (item, animation) {
-                    return SizeTransition(
-                      sizeFactor: animation,
-                      axis: Axis.horizontal,
-                      child: FadeTransition(
-                        opacity: animation,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 5),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 42,
-                                height: 42,
-                                clipBehavior: Clip.hardEdge,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                ),
-                                child: AppImage(
-                                  imageUrl: item.avatarUrl,
-                                  fit: BoxFit.cover,
-                                  type: AppImageType.avatar,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              SizedBox(
-                                width: 56,
-                                child: Text(
-                                  item.nickname,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: t.fontColor,
-                                  ),
-                                ),
-                              ),
-                            ],
                           ),
                         ),
                       ),

@@ -1,4 +1,5 @@
 import 'package:chatapp/cache/isar_cache_service.dart';
+import 'package:chatapp/cache/message_cache_service.dart';
 import 'package:chatapp/controller/global/user_controller.dart';
 import 'package:chatapp/controller/global/theme_controller.dart';
 import 'package:chatapp/controller/global/book_controller.dart';
@@ -35,6 +36,8 @@ Future<void> main() async {
   await SharedPreferences.getInstance();
   // 初始化 Isar 业务缓存
   await IsarCacheService.instance.init();
+  // 初始化 Isar 消息缓存（阶段三：聊天历史本地持久化）
+  await MessageCacheService.instance.init();
   Get.put(UserController(), permanent: true);
   // 全局创建唯一控制器实例 实际是一个 Map<Type, dynamic>，它的 key 为 传入的变量的 类型 值为 该类型的 实例 permanent 默认为 true 此处显式标明该控制器为常驻控制器
   await Get.find<UserController>().loadFromStorage();

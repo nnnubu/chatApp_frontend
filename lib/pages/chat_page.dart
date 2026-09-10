@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:chatapp/api/user_api.dart';
+import 'package:chatapp/cache/message_cache_service.dart';
 import 'package:cross_file/cross_file.dart';
 import 'package:chatapp/constants/app_constants.dart';
 import 'package:chatapp/controller/global/messageController/chatList/chat_list.dart';
@@ -780,6 +781,10 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     if (state.isSuccess) {
       // 乐观更新本地（撤回广播到达时会再次确认，幂等）
       item.recalled.value = true;
+      // 阶段三：同步更新本地消息缓存中的撤回状态（离线时撤回标记也生效）
+      if (item.msgId != null) {
+        unawaited(MessageCacheService.instance.markRecalled(item.msgId!));
+      }
       showTipSnackbar(msg: '已撤回', isSuccess: true);
     } else {
       showTipSnackbar(msg: state.msg, isSuccess: false);
@@ -856,11 +861,29 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       _conversationState.hasMore = commonState.data["hasMore"];
       List? messages = commonState.data["messages"];
       if (messages != null) {
+        // 阶段三：拉取成功后写入消息缓存（离线时兜底渲染）
+        unawaited(
+          MessageCacheService.instance.saveMessages(conversationUid, messages),
+        );
         for (int i = 0; i < messages.length; i++) {
           MessageDispatcher.instance.dispatch(MessageDto.formJson(messages[i]));
         }
         // reverse 列表：历史消息插入顶部（offset 增大方向），底部视图天然稳定，
         // 无需 offset 补偿（补偿反而会破坏倒序稳定性）
+      }
+    } else {
+      // 网络失败：尝试从本地消息缓存恢复历史（离线兜底，仅列表为空时避免与现有消息重复）
+      if (_conversationState.messageList.isEmpty) {
+        final cached =
+            await MessageCacheService.instance.getMessages(conversationUid);
+        if (cached.isNotEmpty) {
+          debugPrint(
+            "离线恢复消息缓存, 会话=$conversationUid, 条数=${cached.length}",
+          );
+          for (final raw in cached) {
+            MessageDispatcher.instance.dispatch(MessageDto.formJson(raw));
+          }
+        }
       }
     }
     _isLoadingHistory = false;
