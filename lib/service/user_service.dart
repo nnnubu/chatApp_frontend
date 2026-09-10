@@ -2,6 +2,8 @@
 
 import 'package:dio/dio.dart';
 import 'package:chatapp/api/user_api.dart';
+import 'package:chatapp/cache/cache_keys.dart';
+import 'package:chatapp/cache/isar_cache_service.dart';
 import 'package:chatapp/dto/dto_base.dart';
 import 'package:chatapp/dto/dto_image.dart';
 import 'package:chatapp/dto/dto_login.dart';
@@ -162,18 +164,53 @@ class UserService {
   }
 
   static Future<OtherInfoState> getOtherInfo(String targetUid) async {
+    // 1. 先读缓存（网络失败时作为兜底返回）
+    OtherInfoState? cachedState;
+    try {
+      final cached = await IsarCacheService.instance.getJson(
+        CacheKeys.userProfile(targetUid),
+      );
+      print('[Cache] getOtherInfo 缓存命中: ${cached != null}, uid: $targetUid');
+      if (cached != null) {
+        final otherUserinfo = OtherUsers.fromJson(cached);
+        cachedState = OtherInfoState(
+          isSuccess: true,
+          msg: "访问成功（缓存）",
+          otherUserInfo: otherUserinfo,
+        );
+      }
+    } catch (e) {
+      print('[Cache] getOtherInfo 缓存读取异常: $e');
+    }
+
+    // 2. 拉网络，成功后回写缓存
     try {
       final data = await UserApi.visitOthers(targetUid);
+      print('[Cache] getOtherInfo 网络结果: data=${data != null}, uid: $targetUid');
       if (data == null) {
-        return OtherInfoState(isSuccess: false, msg: "访问失败，请重试");
+        return cachedState ?? OtherInfoState(isSuccess: false, msg: "访问失败，请重试");
       }
       final otherUserinfo = OtherUsers.fromJson(data);
+      // 回写缓存（TTL 7天，用户资料变化不频繁）
+      try {
+        await IsarCacheService.instance.setJson(
+          CacheKeys.userProfile(targetUid),
+          data,
+          ttlSeconds: 7 * 24 * 60 * 60,
+        );
+        print('[Cache] getOtherInfo 缓存写入成功, uid: $targetUid');
+      } catch (e) {
+        print('[Cache] getOtherInfo 缓存写入异常: $e');
+      }
       return OtherInfoState(
         isSuccess: true,
         msg: "访问成功",
         otherUserInfo: otherUserinfo,
       );
     } catch (e) {
+      // 3. 网络失败，有缓存则返回缓存
+      print('[Cache] getOtherInfo 网络异常: $e, 有缓存: ${cachedState != null}');
+      if (cachedState != null) return cachedState;
       String errMsg = ErrorMsgConstant.networkDefaultErr;
       if (e is DioException) {
         errMsg = e.message ?? ErrorMsgConstant.networkDefaultErr;

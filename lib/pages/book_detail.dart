@@ -5,6 +5,7 @@ import 'package:chatapp/dto/dto_book.dart';
 import 'package:chatapp/service/book_service.dart';
 import 'package:chatapp/utils/build_static_url.dart';
 import 'package:chatapp/utils/show_tip.dart';
+import 'package:chatapp/widgets/app_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -105,14 +106,10 @@ class _BookDetailPageState extends State<BookDetailPage> {
                             fit: StackFit.expand,
                             children: [
                               book.cover.isNotEmpty
-                                  ? Image.network(
-                                      buildStaticUrl(book.cover),
+                                  ? AppImage(
+                                      imageUrl: book.cover,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Container(
-                                        color: t.thirdColor,
-                                        child: Icon(Icons.menu_book,
-                                            size: 64, color: t.hintTextColor),
-                                      ),
+                                      type: AppImageType.cover,
                                     )
                                   : Container(
                                       color: t.thirdColor,

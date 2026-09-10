@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:chatapp/constants/app_constants.dart';
 import 'package:chatapp/controller/global/theme_controller.dart';
 import 'package:chatapp/utils/build_static_url.dart';
@@ -13,6 +14,8 @@ class AppImage extends StatelessWidget {
   final BoxFit fit;
   final BorderRadius? borderRadius;
   final AppImageType type;
+  final int? memCacheWidth;
+  final int? memCacheHeight;
 
   const AppImage({
     super.key,
@@ -22,6 +25,8 @@ class AppImage extends StatelessWidget {
     this.fit = BoxFit.cover,
     this.borderRadius,
     this.type = AppImageType.general,
+    this.memCacheWidth,
+    this.memCacheHeight,
   });
 
   @override
@@ -38,16 +43,15 @@ class AppImage extends StatelessWidget {
 
     return ClipRRect(
       borderRadius: borderRadius ?? BorderRadius.zero,
-      child: Image.network(
-        url,
+      child: CachedNetworkImage(
+        imageUrl: url,
         width: width,
         height: height,
         fit: fit,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return placeholder;
-        },
-        errorBuilder: (context, error, stack) => errorWidget,
+        memCacheWidth: memCacheWidth,
+        memCacheHeight: memCacheHeight,
+        placeholder: (context, url) => placeholder,
+        errorWidget: (context, url, error) => errorWidget,
       ),
     );
   }

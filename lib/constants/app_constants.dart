@@ -27,6 +27,7 @@ enum ContentType {
   image, // 1 图片
   voice, // 2 语音
   video, // 3 视频
+  sticker, // 4 表情（自定义表情包）
 }
 
 extension ContentTypeExt on ContentType {
@@ -40,6 +41,8 @@ extension ContentTypeExt on ContentType {
         return 2;
       case ContentType.video:
         return 3;
+      case ContentType.sticker:
+        return 4;
     }
   }
 
@@ -51,6 +54,8 @@ extension ContentTypeExt on ContentType {
         return ContentType.voice;
       case 3:
         return ContentType.video;
+      case 4:
+        return ContentType.sticker;
       default:
         return ContentType.text;
     }

@@ -5,6 +5,7 @@ import 'package:chatapp/controller/global/theme_controller.dart';
 import 'package:chatapp/pages/chat_page.dart';
 import 'package:chatapp/pages/stranger_preview.dart';
 import 'package:chatapp/utils/build_static_url.dart';
+import 'package:chatapp/widgets/app_image.dart';
 import 'package:chatapp/widgets/message/item_info/chat_list/chat_item.dart';
 import 'package:chatapp/widgets/message/slide_shell.dart';
 import 'package:flutter/material.dart';
@@ -48,6 +49,9 @@ class _ChatCardState extends State<ChatCard> {
     // 视频优先于语音判断：视频 content 也是 {"url":...}，会被语音解析误判
     if (item.contentType == ContentType.video.code) {
       return '[视频]';
+    }
+    if (item.contentType == ContentType.sticker.code) {
+      return '[表情]';
     }
     if (item.contentType == ContentType.voice.code ||
         VoiceMessageContent.tryParse(item.content) != null) {
@@ -94,13 +98,10 @@ class _ChatCardState extends State<ChatCard> {
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                   ),
-                  child: Image.network(
-                    buildStaticUrl(info.avatarUrl),
+                  child: AppImage(
+                    imageUrl: info.avatarUrl,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      color: t.thirdColor,
-                      child: Icon(Icons.person, color: t.hintTextColor),
-                    ),
+                    type: AppImageType.avatar,
                   ),
                 ),
               ),

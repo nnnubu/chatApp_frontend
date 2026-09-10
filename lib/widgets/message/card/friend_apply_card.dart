@@ -5,6 +5,7 @@ import 'package:chatapp/utils/request_id_generator.dart';
 import 'package:chatapp/dto/dto_message.dart';
 import 'package:chatapp/pages/stranger_preview.dart';
 import 'package:chatapp/utils/build_static_url.dart';
+import 'package:chatapp/widgets/app_image.dart';
 import 'package:chatapp/widgets/message/item_info/message_list/friend_apply_item.dart';
 import 'package:chatapp/widgets/message/slide_shell.dart';
 import 'package:chatapp/ws/websocket_service.dart';
@@ -148,13 +149,10 @@ class _FriendApplyCardState extends State<FriendApplyCard> {
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                   ),
-                  child: Image.network(
-                    buildStaticUrl(info.avatarUrl),
+                  child: AppImage(
+                    imageUrl: info.avatarUrl,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      color: t.thirdColor,
-                      child: Icon(Icons.person, color: t.hintTextColor),
-                    ),
+                    type: AppImageType.avatar,
                   ),
                 ),
               ),

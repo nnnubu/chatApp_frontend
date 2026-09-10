@@ -2,6 +2,7 @@ import 'package:chatapp/constants/app_constants.dart';
 import 'package:chatapp/controller/global/theme_controller.dart';
 import 'package:chatapp/dto/dto_book.dart';
 import 'package:chatapp/utils/build_static_url.dart';
+import 'package:chatapp/widgets/app_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -66,23 +67,10 @@ class BookCard extends StatelessWidget {
                       ClipRRect(
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                         child: cover.isNotEmpty
-                            ? Image.network(
-                                buildStaticUrl(cover),
+                            ? AppImage(
+                                imageUrl: cover,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => _placeholderCover(t),
-                                loadingBuilder: (_, child, progress) {
-                                  if (progress == null) return child;
-                                  return Container(
-                                    color: t.thirdColor,
-                                    child: const Center(
-                                      child: SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      ),
-                                    ),
-                                  );
-                                },
+                                type: AppImageType.cover,
                               )
                             : _placeholderCover(t),
                       ),

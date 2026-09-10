@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:chatapp/constants/app_constants.dart';
@@ -10,11 +11,12 @@ import 'package:chatapp/utils/check_input.dart';
 import 'package:chatapp/utils/compress_image.dart';
 import 'package:chatapp/utils/permission_util.dart';
 import 'package:chatapp/utils/show_tip.dart';
+import 'package:chatapp/widgets/app_image.dart';
 import 'package:chatapp/widgets/birthday_selector.dart';
 import 'package:chatapp/widgets/gender_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 
 final double _bgImgHeight = AppBase.bgImgHeight - 150;
 
@@ -57,8 +59,8 @@ class _ProfileEditState extends State<ProfileEdit>
   final RxBool _isSubmitting = false.obs;
   final RxBool _genderPopVisible = false.obs;
   final RxBool _birthPopVisible = false.obs;
-  late int _selectGender;
-  late String _selectBirth;
+  final RxInt _selectGender = 0.obs;
+  final RxString _selectBirth = ''.obs;
 
   Future<void> updateImage({required String uploadType}) async {
     late final bool useCircleUi;
@@ -80,9 +82,15 @@ class _ProfileEditState extends State<ProfileEdit>
     if (!hasPermission) return;
 
     // 从相册挑选图片
-    final XFile? pickedFile = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
+    final List<AssetEntity>? result = await AssetPicker.pickAssets(
+      context,
+      pickerConfig: const AssetPickerConfig(
+        maxAssets: 1,
+        requestType: RequestType.image,
+      ),
     );
+    if (result == null || result.isEmpty) return;
+    final File? pickedFile = await result.first.file;
     if (pickedFile == null) return;
     Uint8List? smallBytes = await compressImage(pickedFile.path);
     if (smallBytes == null) return;
@@ -128,18 +136,18 @@ class _ProfileEditState extends State<ProfileEdit>
     String intro = _introCtrl.text.trim();
     if (intro != originIntro) reqBody["intro"] = intro;
 
-    if (_selectGender != originGender) reqBody["gender"] = _selectGender;
+    if (_selectGender.value != originGender) reqBody["gender"] = _selectGender.value;
 
-    if (_selectBirth != originBirth) reqBody["birthday"] = _selectBirth;
+    if (_selectBirth.value != originBirth) reqBody["birthday"] = _selectBirth.value;
 
-    String? genderErr = CheckInput.gender(_selectGender);
+    String? genderErr = CheckInput.gender(_selectGender.value);
     if (genderErr != null) {
       showTipSnackbar(msg: genderErr, isSuccess: false);
       _isSubmitting.value = false;
       return;
     }
 
-    String? birthErr = CheckInput.birthday(_selectBirth);
+    String? birthErr = CheckInput.birthday(_selectBirth.value);
     if (birthErr != null) {
       showTipSnackbar(msg: birthErr, isSuccess: false);
       _isSubmitting.value = false;
@@ -162,8 +170,8 @@ class _ProfileEditState extends State<ProfileEdit>
       userCtrl.patchUserInfo(
         nickname: nickname,
         intro: intro,
-        gender: _selectGender,
-        birthday: _selectBirth,
+        gender: _selectGender.value,
+        birthday: _selectBirth.value,
       );
       Get.back();
     }
@@ -179,8 +187,8 @@ class _ProfileEditState extends State<ProfileEdit>
     originNick = userCtrl.nickname;
     originIntro = userCtrl.intro;
 
-    _selectGender = originGender;
-    _selectBirth = originBirth;
+    _selectGender.value = originGender;
+    _selectBirth.value = originBirth;
 
     _themeController = Get.find<ThemeController>();
     _userController = Get.find<UserController>();
@@ -263,24 +271,14 @@ class _ProfileEditState extends State<ProfileEdit>
                                       color: Colors.black54,
                                     ),
                                     child: Obx(() {
-                                      return Image.network(
-                                        buildStaticUrl(
-                                          _userController.bgImg.url,
-                                        ),
-                                        cacheHeight:
-                                            _userController.bgImg.thumbH,
-                                        cacheWidth:
-                                            _userController.bgImg.thumbW,
+                                      return AppImage(
+                                        imageUrl: _userController.bgImg.url,
                                         fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stack) {
-                                              return Container(
-                                                decoration: const BoxDecoration(
-                                                  color: Colors.grey,
-                                                ),
-                                                child: const Icon(Icons.error),
-                                              );
-                                            },
+                                        type: AppImageType.background,
+                                        memCacheWidth:
+                                            _userController.bgImg.thumbW,
+                                        memCacheHeight:
+                                            _userController.bgImg.thumbH,
                                       );
                                     }),
                                   ),
@@ -296,19 +294,12 @@ class _ProfileEditState extends State<ProfileEdit>
                             child: Container(
                               decoration: const BoxDecoration(color: Colors.black54),
                               child: Obx(() {
-                                return Image.network(
-                                  buildStaticUrl(_userController.bgImg.url),
-                                  cacheHeight: _userController.bgImg.thumbH,
-                                  cacheWidth: _userController.bgImg.thumbW,
+                                return AppImage(
+                                  imageUrl: _userController.bgImg.url,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stack) {
-                                    return Container(
-                                      decoration: const BoxDecoration(
-                                        color: Colors.grey,
-                                      ),
-                                      child: const Icon(Icons.error),
-                                    );
-                                  },
+                                  type: AppImageType.background,
+                                  memCacheWidth: _userController.bgImg.thumbW,
+                                  memCacheHeight: _userController.bgImg.thumbH,
                                 );
                               }),
                             ),
@@ -329,19 +320,12 @@ class _ProfileEditState extends State<ProfileEdit>
                                   color: Colors.black54,
                                 ),
                                 child: Obx(() {
-                                  return Image.network(
-                                    buildStaticUrl(_userController.avatar.url),
-                                    cacheHeight: _userController.avatar.thumbH,
-                                    cacheWidth: _userController.avatar.thumbW,
+                                  return AppImage(
+                                    imageUrl: _userController.avatar.url,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stack) {
-                                      return Container(
-                                        decoration: const BoxDecoration(
-                                          color: Colors.grey,
-                                        ),
-                                        child: const Icon(Icons.error),
-                                      );
-                                    },
+                                    type: AppImageType.avatar,
+                                    memCacheWidth: _userController.avatar.thumbW,
+                                    memCacheHeight: _userController.avatar.thumbH,
                                   );
                                 }),
                               ),
@@ -518,8 +502,8 @@ class _ProfileEditState extends State<ProfileEdit>
                         // 重置按钮
                         GestureDetector(
                           onTap: () {
-                            _selectGender = originGender;
-                            _selectBirth = originBirth;
+                            _selectGender.value = originGender;
+                            _selectBirth.value = originBirth;
                             _nickCtrl.text = originNick;
                             _introCtrl.text = originIntro;
                             _genderCtrl.text = genderMap[originGender]!;
@@ -664,15 +648,13 @@ class _ProfileEditState extends State<ProfileEdit>
             Obx(() {
               if (!_genderPopVisible.value) return const SizedBox.shrink();
               return GenderSelector(
-                initSelect: _selectGender,
+                initSelect: _selectGender.value,
                 bgColor: t.scaffoldBg,
                 btnColor: t.primaryColor,
                 genderMap: genderMap,
                 onSelect: (int selectGender) {
-                  setState(() {
-                    _selectGender = selectGender;
-                    _genderCtrl.text = genderMap[_selectGender]!;
-                  });
+                  _selectGender.value = selectGender;
+                  _genderCtrl.text = genderMap[selectGender]!;
                 },
                 onVisible: (bool isVisible) {
                   _genderPopVisible.value = isVisible;
@@ -682,14 +664,12 @@ class _ProfileEditState extends State<ProfileEdit>
             Obx(() {
               if (!_birthPopVisible.value) return const SizedBox.shrink();
               return BirthdaySelector(
-                initialBirthStr: _selectBirth,
+                initialBirthStr: _selectBirth.value,
                 bgColor: t.scaffoldBg,
                 btnColor: t.primaryColor,
                 onConfirm: (birthStr) {
-                  setState(() {
-                    _selectBirth = birthStr;
-                    _birthCtrl.text = birthStr;
-                  });
+                  _selectBirth.value = birthStr;
+                  _birthCtrl.text = birthStr;
                 },
                 onVisible: (isVisible) {
                   _birthPopVisible.value = false;

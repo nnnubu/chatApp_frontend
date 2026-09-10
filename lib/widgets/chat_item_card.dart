@@ -8,6 +8,7 @@ import 'package:chatapp/widgets/message/item_info/chat_list/chat_item.dart';
 import 'package:chatapp/widgets/message/item_info/chat_list/image_message.dart';
 import 'package:chatapp/widgets/message/item_info/chat_list/voice_message.dart';
 import 'package:chatapp/widgets/message/item_info/chat_list/video_message.dart';
+import 'package:chatapp/widgets/message/item_info/chat_list/sticker_message.dart';
 import 'package:chatapp/widgets/voice_bubble.dart';
 import 'package:chatapp/widgets/video_bubble.dart';
 import 'package:chatapp/ws/ack_helper.dart';
@@ -117,6 +118,27 @@ class _ChatItemCardState extends State<ChatItemCard>
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
         ),
+      );
+    }
+
+    // ===== 表情包消息分支：直接引用已收藏的表情包 url，无上传过程 =====
+    if (item.contentType == ContentType.sticker.code) {
+      final StickerMessageContent? sticker =
+          StickerMessageContent.tryParse(item.content);
+      if (sticker != null) {
+        return AppImage(
+          imageUrl: sticker.url,
+          width: 120,
+          height: 120,
+          fit: BoxFit.contain,
+          type: AppImageType.general,
+        );
+      }
+      // content 解析失败（极端情况）：显示占位
+      return const SizedBox(
+        width: 120,
+        height: 120,
+        child: Icon(Icons.broken_image_outlined, size: 32),
       );
     }
 
@@ -361,7 +383,8 @@ class _ChatItemCardState extends State<ChatItemCard>
       // 语音/图片/视频消息使用紧凑 padding，避免固定高度气泡 + 外层 padding 叠加溢出
       final bool isMediaBubble = isImage ||
           widget.item.contentType == ContentType.voice.code ||
-          widget.item.contentType == ContentType.video.code;
+          widget.item.contentType == ContentType.video.code ||
+          widget.item.contentType == ContentType.sticker.code;
       // 已撤回：不展示原内容，替换为灰色提示文字（仍可长按删除）
       final bool isRecalled = widget.item.recalled.value;
       final Widget bubble = isRecalled

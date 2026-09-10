@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
 const Duration _defaultDuration = Duration(milliseconds: 200);
 
@@ -31,7 +32,7 @@ class _SlideShellState extends State<SlideShell>
     with SingleTickerProviderStateMixin {
   late AnimationController _slideCtrl;
   late Animation<double> _animX;
-  double _slideX = 0;
+  final RxDouble _slideX = 0.0.obs;
 
   void slide(double targetX) {
     double dx = targetX.clamp(-widget.actionWidth, 0);
@@ -41,7 +42,7 @@ class _SlideShellState extends State<SlideShell>
     ).animate(CurvedAnimation(parent: _slideCtrl, curve: Curves.easeIn));
     _slideCtrl.forward(from: 0);
     // 更新 _slideX 的值，防止动画结束的重新渲染又跳回去
-    _slideX = targetX;
+    _slideX.value = targetX;
   }
 
   @override
@@ -50,7 +51,7 @@ class _SlideShellState extends State<SlideShell>
     _slideCtrl = AnimationController(vsync: this, duration: _defaultDuration);
     _animX = const AlwaysStoppedAnimation(0.0);
     if (widget.autoSlideBack) {
-      _slideX = -widget.actionWidth;
+      _slideX.value = -widget.actionWidth;
       _animX = AlwaysStoppedAnimation(-widget.actionWidth);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) slide(0);
@@ -87,11 +88,9 @@ class _SlideShellState extends State<SlideShell>
           Positioned.fill(
             child: GestureDetector(
               onHorizontalDragUpdate: (details) {
-                // 此处跟随手指滑动 所以需要setState来跟新
-                _slideX += details.delta.dx;
-                _slideX = _slideX.clamp(-widget.actionWidth, 0);
-                setState(() {});
-                _animX = AlwaysStoppedAnimation(_slideX);
+                _slideX.value += details.delta.dx;
+                _slideX.value = _slideX.value.clamp(-widget.actionWidth, 0);
+                _animX = AlwaysStoppedAnimation(_slideX.value);
               },
               onHorizontalDragEnd: (details) {
                 // 水平速度
@@ -106,10 +105,10 @@ class _SlideShellState extends State<SlideShell>
                 }
               },
               onTap: () {
-                if (_slideX != 0) {
+                if (_slideX.value != 0) {
                   // 此处需要更新这个为 0 因为如果点击之前 _slideX 不等于 0 那么上面判断的 dx 在动画结束之后回到原来的位置
-                  _slideX = 0;
-                  slide(_slideX);
+                  _slideX.value = 0;
+                  slide(_slideX.value);
                 } else {
                   // debugPrint("跳转聊天界面");
                   widget.shellOnTap();
@@ -118,11 +117,13 @@ class _SlideShellState extends State<SlideShell>
               child: AnimatedBuilder(
                 animation: _slideCtrl,
                 builder: (context, child) {
-                  double dx = _slideCtrl.isAnimating ? _animX.value : _slideX;
-                  return Transform.translate(
-                    offset: Offset(dx, 0),
-                    child: child,
-                  );
+                  return Obx(() {
+                    double dx = _slideCtrl.isAnimating ? _animX.value : _slideX.value;
+                    return Transform.translate(
+                      offset: Offset(dx, 0),
+                      child: child,
+                    );
+                  });
                 },
                 child: widget.shellInChild,
               ),

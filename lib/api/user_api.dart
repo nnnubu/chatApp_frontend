@@ -153,6 +153,55 @@ class UserApi {
     return res.data as Map<String, dynamic>?;
   }
 
+  /// 上传自定义表情包：返回 {id, url}
+  static Future<Map<String, dynamic>?> uploadSticker(
+    Uint8List bytes,
+    String ext,
+  ) async {
+    String fileName =
+        "sticker${DateTime.now().millisecondsSinceEpoch}.${ext.isEmpty ? 'png' : ext}";
+    MultipartFile file = MultipartFile.fromBytes(
+      bytes,
+      filename: fileName,
+      contentType: DioMediaType.parse("image/png"),
+    );
+    FormData formData = FormData.fromMap({"file": file});
+    Response res = await DioUtil.dio.post(
+      "auth/uploadSticker",
+      data: formData,
+      options: Options(
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
+    return res.data as Map<String, dynamic>?;
+  }
+
+  /// 拉取用户收藏的表情包列表：返回 {list: [{id, url, createdAt}]}
+  static Future<Map<String, dynamic>?> pullStickers() async {
+    Response res = await DioUtil.dio.get(
+      "auth/pullStickers",
+      options: Options(
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 15),
+      ),
+    );
+    return res.data as Map<String, dynamic>?;
+  }
+
+  /// 删除用户收藏的表情包
+  static Future<Map<String, dynamic>?> deleteSticker(String stickerId) async {
+    Response res = await DioUtil.dio.delete(
+      "auth/deleteSticker",
+      queryParameters: {"id": stickerId},
+      options: Options(
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 15),
+      ),
+    );
+    return res.data as Map<String, dynamic>?;
+  }
+
   static Future<Map<String, dynamic>?> updateInfo(
     Map<String, dynamic> body,
   ) async {

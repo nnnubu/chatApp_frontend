@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:chatapp/utils/build_static_url.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:video_player/video_player.dart';
 
 /// 视频消息气泡
@@ -25,8 +26,8 @@ class VideoBubble extends StatefulWidget {
 
 class _VideoBubbleState extends State<VideoBubble> {
   VideoPlayerController? _controller;
-  bool _initialized = false;
-  bool _loadFailed = false;
+  final _initialized = false.obs;
+  final _loadFailed = false.obs;
 
   @override
   void initState() {
@@ -48,12 +49,8 @@ class _VideoBubbleState extends State<VideoBubble> {
   Future<void> _resetController() {
     _controller?.dispose();
     _controller = null;
-    if (mounted) {
-      setState(() {
-        _initialized = false;
-        _loadFailed = false;
-      });
-    }
+    _initialized.value = false;
+    _loadFailed.value = false;
     return _initController();
   }
 
@@ -73,12 +70,10 @@ class _VideoBubbleState extends State<VideoBubble> {
         ctrl.dispose();
         return;
       }
-      setState(() => _initialized = true);
+      _initialized.value = true;
     } catch (e) {
       debugPrint('视频加载失败: $e');
-      if (mounted) {
-        setState(() => _loadFailed = true);
-      }
+      _loadFailed.value = true;
     }
   }
 
@@ -153,12 +148,12 @@ class _VideoBubbleState extends State<VideoBubble> {
         width: width,
         height: 150,
         color: Colors.black87,
-        child: _loadFailed
+        child: Obx(() => _loadFailed.value
             ? const Center(
                 child: Icon(Icons.videocam_off_outlined,
                     color: Colors.white54, size: 32),
               )
-            : !_initialized
+            : !_initialized.value
                 ? const Center(
                     child: SizedBox(
                       width: 22,
@@ -221,7 +216,7 @@ class _VideoBubbleState extends State<VideoBubble> {
                         ),
                       ],
                     ),
-                  ),
+                  )),
       ),
     );
   }

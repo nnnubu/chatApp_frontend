@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:chatapp/api/user_api.dart';
+import 'package:cross_file/cross_file.dart';
 import 'package:chatapp/constants/app_constants.dart';
 import 'package:chatapp/controller/global/messageController/chatList/chat_list.dart';
 import 'package:chatapp/controller/global/theme_controller.dart';
@@ -17,8 +19,9 @@ import 'package:chatapp/widgets/message/item_info/base_info.dart';
 import 'package:chatapp/widgets/message/item_info/chat_list/chat_item.dart';
 import 'package:chatapp/widgets/message/item_info/chat_list/image_message.dart';
 import 'package:chatapp/widgets/message/item_info/chat_list/video_message.dart';
+import 'package:chatapp/widgets/message/item_info/chat_list/sticker_message.dart';
+import 'package:chatapp/widgets/sticker_panel.dart';
 import 'package:chatapp/ws/ack_helper.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import 'package:chatapp/ws/message_dispatcher.dart';
 import 'package:chatapp/ws/websocket_service.dart';
@@ -59,10 +62,10 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   StreamSubscription? _ackSub;
 
   // ===== 语音消息字段 =====
-  bool _isVoiceMode = false; // 是否语音输入模式
-  bool _isRecording = false; // 是否正在录音
-  bool _cancelRecording = false; // 是否上滑取消
-  int _recordSeconds = 0; // 录音时长（秒）
+  final RxBool _isVoiceMode = false.obs; // 是否语音输入模式
+  final RxBool _isRecording = false.obs; // 是否正在录音
+  final RxBool _cancelRecording = false.obs; // 是否上滑取消
+  final RxInt _recordSeconds = 0.obs; // 录音时长（秒）
   String? _recordPath; // 录音文件路径
   AudioRecorder? _recorder;
   Timer? _recordTimer;
@@ -123,7 +126,12 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     );
   }
 
-  /// 发送图片消息：先乐观渲染（本地图+转圈）-> 上传 -> 成功填URL发WS / 失败标记感叹号
+  /// 发送表情包消息：表情包已在服务器，直接乐观渲染 + 发 WS，无需上传
+  void _sendStickerMessage(String url, String? stickerId) {
+    final content = StickerMessageContent(url: url, stickerId: stickerId).toJson();
+    _sendMessageOptimistic(content, contentType: ContentType.sticker.code);
+  }
+
   /// 发送图片消息：选图 -> [resendItem] 重发复用本地图，否则打开相册单选
   Future<void> _sendImageMessage({ChatItem? resendItem}) async {
     XFile? picked;
@@ -131,12 +139,17 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       // 重发：直接使用本地已选图片
       picked = XFile(resendItem.localImagePath!);
     } else {
-      picked = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1920,
-        maxHeight: 1920,
-        imageQuality: 85,
+      final List<AssetEntity>? result = await AssetPicker.pickAssets(
+        context,
+        pickerConfig: const AssetPickerConfig(
+          maxAssets: 1,
+          requestType: RequestType.image,
+        ),
       );
+      if (result == null || result.isEmpty) return;
+      final File? file = await result.first.file;
+      if (file == null) return;
+      picked = XFile(file.path);
     }
     if (picked == null) return;
     await _sendImageFile(picked, resendItem: resendItem);
@@ -251,10 +264,17 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       // 重发：直接使用本地已选视频
       picked = XFile(resendItem.localVideoPath!);
     } else {
-      picked = await ImagePicker().pickVideo(
-        source: ImageSource.gallery,
-        maxDuration: const Duration(seconds: 60),
+      final List<AssetEntity>? result = await AssetPicker.pickAssets(
+        context,
+        pickerConfig: const AssetPickerConfig(
+          maxAssets: 1,
+          requestType: RequestType.video,
+        ),
       );
+      if (result == null || result.isEmpty) return;
+      final File? file = await result.first.file;
+      if (file == null) return;
+      picked = XFile(file.path);
     }
     if (picked == null) return;
     await _sendVideoFile(picked, resendItem: resendItem);
@@ -388,10 +408,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
   /// 切换 文本/语音 输入模式
   void _toggleVoiceMode() {
-    setState(() {
-      _isVoiceMode = !_isVoiceMode;
-    });
-    if (_isVoiceMode) {
+    _isVoiceMode.value = !_isVoiceMode.value;
+    if (_isVoiceMode.value) {
       FocusScope.of(context).unfocus();
     }
   }
@@ -418,31 +436,27 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         ),
         path: path,
       );
-      setState(() {
-        _isRecording = true;
-        _cancelRecording = false;
-        _recordSeconds = 0;
-        _recordPath = path;
-      });
+      _isRecording.value = true;
+      _cancelRecording.value = false;
+      _recordSeconds.value = 0;
+      _recordPath = path;
       _showRecordOverlay.value = true;
       // 启动计时器
       _recordTimer?.cancel();
       _recordTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (mounted) {
-          setState(() => _recordSeconds++);
-        }
+        _recordSeconds.value++;
       });
     } catch (e) {
       debugPrint('开始录音失败: $e');
       _showRecordOverlay.value = false;
-      _isRecording = false;
+      _isRecording.value = false;
       showTipSnackbar(msg: '录音失败，请重试', isSuccess: false);
     }
   }
 
   /// 停止录音并发送
   Future<void> _stopRecordingAndSend() async {
-    if (!_isRecording) return;
+    if (!_isRecording.value) return;
     _recordTimer?.cancel();
     _showRecordOverlay.value = false;
     String? path;
@@ -451,8 +465,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('停止录音异常: $e');
     }
-    setState(() => _isRecording = false);
-    if (_cancelRecording || path == null) {
+    _isRecording.value = false;
+    if (_cancelRecording.value || path == null) {
       // 上滑取消 或 无有效文件
       if (path != null) {
         final f = File(path);
@@ -461,18 +475,18 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       return;
     }
     // 太短的录音（<1秒）提示取消
-    if (_recordSeconds < 1) {
+    if (_recordSeconds.value < 1) {
       final f = File(path);
       if (f.existsSync()) f.deleteSync();
       showTipSnackbar(msg: '说话时间太短', isSuccess: false);
       return;
     }
-    await _sendVoiceMessage(path, _recordSeconds);
+    await _sendVoiceMessage(path, _recordSeconds.value);
   }
 
   /// 取消录音（上滑时调用）
   Future<void> _doCancelRecording() async {
-    _cancelRecording = true;
+    _cancelRecording.value = true;
     _recordTimer?.cancel();
     _showRecordOverlay.value = false;
     try {
@@ -480,7 +494,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('取消录音异常: $e');
     }
-    setState(() => _isRecording = false);
+    _isRecording.value = false;
   }
 
   /// 构建"按住说话"按钮
@@ -494,13 +508,13 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       onLongPressMoveUpdate: (details) {
         // 手指向上滑出按钮上方一定距离视为取消
         final bool movedUp = details.localPosition.dy < -60;
-        if (movedUp != _cancelRecording) {
-          setState(() => _cancelRecording = movedUp);
+        if (movedUp != _cancelRecording.value) {
+          _cancelRecording.value = movedUp;
         }
       },
       // 松开手指结束
       onLongPressEnd: (_) {
-        if (_cancelRecording) {
+        if (_cancelRecording.value) {
           _doCancelRecording();
         } else {
           _stopRecordingAndSend();
@@ -511,37 +525,39 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       },
       child: Container(
         margin: EdgeInsets.fromLTRB(0, 0, 7, 0),
-        decoration: BoxDecoration(
-          color: _isRecording
-              ? (_cancelRecording
-                    ? Colors.red.shade100
-                    : t.primaryColor.withOpacity(0.15))
-              : t.thirdColor,
-          borderRadius: BorderRadius.circular(5),
-        ),
-        child: Center(
-          child: _isRecording
-              ? (_cancelRecording
-                    ? const Text(
-                        "松开取消",
-                        style: TextStyle(fontSize: 16, color: Colors.red),
-                      )
-                    : Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _RecordingWave(color: t.primaryColor),
-                          const SizedBox(width: 10),
-                          Text(
-                            "松开发送",
-                            style: TextStyle(fontSize: 16, color: t.fontColor),
-                          ),
-                        ],
-                      ))
-              : Text(
-                  "按住 说话",
-                  style: TextStyle(fontSize: 16, color: t.fontColor),
-                ),
-        ),
+        child: Obx(() => Container(
+          decoration: BoxDecoration(
+            color: _isRecording.value
+                ? (_cancelRecording.value
+                      ? Colors.red.shade100
+                      : t.primaryColor.withOpacity(0.15))
+                : t.thirdColor,
+            borderRadius: BorderRadius.circular(5),
+          ),
+          child: Center(
+            child: _isRecording.value
+                ? (_cancelRecording.value
+                      ? const Text(
+                          "松开取消",
+                          style: TextStyle(fontSize: 16, color: Colors.red),
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _RecordingWave(color: t.primaryColor),
+                            const SizedBox(width: 10),
+                            Text(
+                              "松开发送",
+                              style: TextStyle(fontSize: 16, color: t.fontColor),
+                            ),
+                          ],
+                        ))
+                : Text(
+                    "按住 说话",
+                    style: TextStyle(fontSize: 16, color: t.fontColor),
+                  ),
+          ),
+        )),
       ),
     );
   }
@@ -551,7 +567,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   Widget _buildRecordOverlay(AppTheme t) {
     return Obx(() {
       // 录音中不显示顶部提示；只有上滑取消时才显示
-      if (!_showRecordOverlay.value || !_cancelRecording) {
+      if (!_showRecordOverlay.value || !_cancelRecording.value) {
         return const SizedBox.shrink();
       }
       return Positioned(
@@ -710,8 +726,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         return;
       }
       debugPrint("语音消息无有效 content，引导重新录音");
-      if (!_isVoiceMode) {
-        setState(() => _isVoiceMode = true);
+      if (!_isVoiceMode.value) {
+        _isVoiceMode.value = true;
       }
       showTipSnackbar(msg: '语音发送失败，请按住重新录音', isSuccess: false);
       return;
@@ -1267,9 +1283,21 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                     width: screenWidth,
                     height: 60 + safeBottomPadding,
                     decoration: BoxDecoration(color: t.secondColor),
-                    child: Row(
+                    child: Obx(() => Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        // 表情包按钮：打开自定义表情包面板
+                        SizedBox(
+                          width: 44,
+                          child: Center(
+                            child: IconButton(
+                              onPressed: () => StickerPanel.show(context, _sendStickerMessage),
+                              icon: Icon(Icons.emoji_emotions_outlined, size: 26),
+                              color: t.fontColor,
+                              tooltip: '表情包',
+                            ),
+                          ),
+                        ),
                         // 多媒体按钮：打开相册多选（图片+视频混合）
                         SizedBox(
                           width: 44,
@@ -1289,21 +1317,21 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                             child: IconButton(
                               onPressed: _toggleVoiceMode,
                               icon: Icon(
-                                _isVoiceMode
+                                _isVoiceMode.value
                                     ? Icons.keyboard_alt_outlined
                                     : Icons.mic_none,
                                 size: 26,
                               ),
-                              color: _isVoiceMode
+                              color: _isVoiceMode.value
                                   ? t.primaryColor
                                   : t.fontColor,
-                              tooltip: _isVoiceMode ? '切换文字输入' : '语音输入',
+                              tooltip: _isVoiceMode.value ? '切换文字输入' : '语音输入',
                             ),
                           ),
                         ),
                         Expanded(
                           flex: 5,
-                          child: _isVoiceMode
+                          child: _isVoiceMode.value
                               ? _buildHoldToTalkButton(t)
                               : TextFormField(
                                   maxLines: null,
@@ -1345,7 +1373,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                           ),
                         ),
                       ],
-                    ),
+                    )),
                   ),
                 ],
               ),

@@ -11,6 +11,7 @@ import 'package:chatapp/pages/stranger_preview.dart';
 import 'package:chatapp/service/user_service.dart';
 import 'package:chatapp/utils/build_static_url.dart';
 import 'package:chatapp/utils/show_tip.dart';
+import 'package:chatapp/widgets/app_image.dart';
 import 'package:chatapp/widgets/common_animated_list.dart';
 import 'package:chatapp/widgets/message/card/chat_card.dart';
 import 'package:chatapp/widgets/message/card/friend_apply_card.dart';
@@ -435,41 +436,57 @@ class _MessageView extends State<MessageView>
                           onTap: () {
                             Get.to(() => StrangerPreview(targetUid: item.uid));
                           },
-                          child: Stack(
-                            children: [
-                              Container(
-                                width: 50,
-                                height: 50,
-                                margin: const EdgeInsets.all(5),
-                                clipBehavior: Clip.hardEdge,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 5),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Stack(
+                                  children: [
+                                    Container(
+                                      width: 42,
+                                      height: 42,
+                                      clipBehavior: Clip.hardEdge,
+                                      decoration: const BoxDecoration(
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: AppImage(
+                                        imageUrl: item.avatarUrl,
+                                        fit: BoxFit.cover,
+                                        type: AppImageType.avatar,
+                                      ),
+                                    ),
+                                    if (item.isOnline)
+                                      Positioned(
+                                        bottom: 0,
+                                        right: 0,
+                                        child: Container(
+                                          height: AppBase.onlineRadius,
+                                          width: AppBase.onlineRadius,
+                                          decoration: BoxDecoration(
+                                            color: AppBase.onlineSign,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                                child: Image.network(
-                                  buildStaticUrl(item.avatarUrl),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stack) {
-                                    return Container(
-                                      color: t.thirdColor,
-                                      child: Icon(Icons.person, color: t.hintTextColor),
-                                    );
-                                  },
-                                ),
-                              ),
-                              if (item.isOnline)
-                                Positioned(
-                                  bottom: 0,
-                                  right: 0,
-                                  child: Container(
-                                    height: AppBase.onlineRadius,
-                                    width: AppBase.onlineRadius,
-                                    decoration: BoxDecoration(
-                                      color: AppBase.onlineSign,
-                                      shape: BoxShape.circle,
+                                const SizedBox(height: 2),
+                                SizedBox(
+                                  width: 56,
+                                  child: Text(
+                                    item.nickname,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: t.fontColor,
                                     ),
                                   ),
                                 ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -481,21 +498,39 @@ class _MessageView extends State<MessageView>
                       axis: Axis.horizontal,
                       child: FadeTransition(
                         opacity: animation,
-                        child: Container(
-                          width: 55,
-                          height: 55,
-                          margin: const EdgeInsets.all(5),
-                          decoration: BoxDecoration(
-                            color: Colors.white30,
-                            border: Border.all(color: Colors.black, width: 2),
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          child: Image.network(
-                            buildStaticUrl(item.avatarUrl),
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stack) {
-                              return const Icon(Icons.person);
-                            },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 5),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 42,
+                                height: 42,
+                                clipBehavior: Clip.hardEdge,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                ),
+                                child: AppImage(
+                                  imageUrl: item.avatarUrl,
+                                  fit: BoxFit.cover,
+                                  type: AppImageType.avatar,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              SizedBox(
+                                width: 56,
+                                child: Text(
+                                  item.nickname,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: t.fontColor,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),

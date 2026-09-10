@@ -4,6 +4,7 @@ import 'package:chatapp/controller/global/theme_controller.dart';
 import 'package:chatapp/service/user_service.dart';
 import 'package:chatapp/utils/build_static_url.dart';
 import 'package:chatapp/utils/show_tip.dart';
+import 'package:chatapp/widgets/app_image.dart';
 import 'package:chatapp/widgets/user_image_box.dart';
 import 'package:chatapp/widgets/user_profile.dart';
 import 'package:flutter/material.dart';
@@ -203,19 +204,12 @@ class _UserInfoViewState extends State<UserInfoView>
                             builder: (context) {
                               final imgResp = uploadState?.imageResp;
                               if (imgResp == null) return const SizedBox();
-                              return Image.network(
-                                buildStaticUrl(imgResp.url),
-                                cacheHeight: imgResp.thumbH,
-                                cacheWidth: imgResp.thumbW,
+                              return AppImage(
+                                imageUrl: imgResp.url,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stack) {
-                                  return Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey,
-                                    ),
-                                    child: Icon(Icons.error),
-                                  );
-                                },
+                                type: AppImageType.general,
+                                memCacheWidth: imgResp.thumbW,
+                                memCacheHeight: imgResp.thumbH,
                               );
                             },
                           ),

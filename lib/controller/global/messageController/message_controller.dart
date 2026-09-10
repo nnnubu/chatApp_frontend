@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:chatapp/cache/cache_keys.dart';
+import 'package:chatapp/cache/isar_cache_service.dart';
 import 'package:chatapp/controller/global/messageController/base.dart';
 import 'package:chatapp/controller/global/messageController/categoryList/category_list.dart';
 import 'package:chatapp/controller/global/messageController/chatList/chat_list.dart';
@@ -152,7 +154,7 @@ class MessageController extends GetxController {
               if (category == null) return;
 
               unawaited(
-                pullFriends(category.page, category.pageSize).then((result) {
+                pullFriends(category.page, category.pageSize, categoryName: category.name).then((result) {
                   // 获取新的分页数据之后 更新当前类别的页码以及 是否还有更多数据
 
                   final (:hasMore, :page, :friends) = result;
@@ -182,7 +184,7 @@ class MessageController extends GetxController {
             addCategoryInfo(infoSnapShot);
             if (infoSnapShot.type == 1) {
               unawaited(
-                pullFriends(infoSnapShot.page, infoSnapShot.pageSize).then((
+                pullFriends(infoSnapShot.page, infoSnapShot.pageSize, categoryName: infoSnapShot.name).then((
                   result,
                 ) {
                   // 获取新的分页数据之后 更新当前类别的页码以及 是否还有更多数据
@@ -385,9 +387,82 @@ class MessageController extends GetxController {
   Future<void> pullCategory() async {
     if (_isLoadingCategory) return;
     _isLoadingCategory = true;
-    final CommonState commonState = await UserService.pullCategory();
-    if (commonState.isSuccess && commonState.data != null) {
-      if (commonState.data is List) {
+    try {
+      // 1. 先读缓存恢复分类（try-catch 兜底，缓存失败不影响网络拉取）
+      try {
+        final cached = await IsarCacheService.instance.getJson(CacheKeys.friendCategories);
+        print('[Cache] pullCategory 缓存命中: ${cached != null}, 数据长度: ${(cached?['list'] as List?)?.length ?? 0}');
+        if (cached != null) {
+          final list = (cached['list'] as List?) ?? [];
+          for (var item in list) {
+            final cat = Map<String, dynamic>.from(item as Map);
+            final name = cat['CategoryName']?.toString() ?? '';
+            if (name.isEmpty) continue;
+            final type = (cat['CategoryType'] as num?)?.toInt() ?? 1;
+            final sort = (cat['sort'] as num?)?.toInt() ?? 0;
+            final info = CategoryInfo(
+              name: name,
+              type: type,
+              sort: sort,
+              itemList: <BaseInfoItem>[].obs,
+              page: 1,
+              pageSize: 20,
+              isPullMoreItem: false,
+            );
+            addCategoryInfo(info);
+            // 缓存恢复好友分类后，主动拉取好友列表（pullFriends 内部会优先读缓存）
+            if (type == 1) {
+              unawaited(pullFriends(1, 20, categoryName: name).then((result) {
+                final (:hasMore, :page, :friends) = result;
+                final category = _categoryList.dataSource.firstWhereOrNull(
+                  (element) => element.name == name,
+                );
+                if (category == null) return;
+                if (hasMore != null) category.hasMore = hasMore;
+                category.page = page;
+                if (friends != null && friends.isNotEmpty) {
+                  for (var element in friends) {
+                    final String? uid = element["uid"];
+                    final String? nickname = element["nickname"];
+                    final String? avatarUrl = element["avatarUrl"];
+                    if (uid == null) continue;
+                    addCategoryItem(
+                      name,
+                      uid,
+                      nickname ?? "",
+                      avatarUrl ?? "",
+                    );
+                  }
+                }
+              }));
+            }
+          }
+          print('[Cache] pullCategory 缓存恢复完成, 当前分类数: ${_categoryList.dataSource.length}');
+        }
+      } catch (e) {
+        print('[Cache] pullCategory 缓存读取异常: $e');
+      }
+
+      // 2. 再拉网络，通过事件分发添加（新增分类会触发动画，已存在的分类会被去重过滤）
+      final CommonState commonState = await UserService.pullCategory();
+      print('[Cache] pullCategory 网络结果: isSuccess=${commonState.isSuccess}, data长度=${(commonState.data as List?)?.length ?? 0}');
+      if (commonState.isSuccess && commonState.data != null && commonState.data is List) {
+        // 回写缓存（TTL 24小时）—— 直接存后端原始数据，不做字段映射
+        try {
+          final cats = (commonState.data as List)
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .where((c) => (c['CategoryName']?.toString() ?? '').isNotEmpty)
+              .toList();
+          await IsarCacheService.instance.setJson(
+            CacheKeys.friendCategories,
+            {'list': cats},
+            ttlSeconds: 24 * 60 * 60,
+          );
+          print('[Cache] pullCategory 缓存写入成功, 数量: ${cats.length}');
+        } catch (e) {
+          print('[Cache] pullCategory 缓存写入异常: $e');
+        }
+
         for (var element in commonState.data) {
           Map<String, dynamic> data = Map.from({
             "msgType": "pullCategory",
@@ -396,30 +471,80 @@ class MessageController extends GetxController {
           MessageDispatcher.instance.dispatch(MessageDto.formJson(data));
         }
       }
+    } finally {
+      _isLoadingCategory = false;
     }
-    _isLoadingCategory = false;
   }
 
   // 拉取分类区域内部元素
   Future<({bool? hasMore, int page, List? friends})> pullFriends(
     int page,
-    int pageSize,
-  ) async {
+    int pageSize, {
+    String? categoryName,
+  }) async {
     if (_isLoadingFriends) return (hasMore: null, page: page, friends: null);
     _isLoadingFriends = true;
-    final CommonState commonState = await UserService.pullFriends(
-      page,
-      pageSize,
-    );
-    _isLoadingFriends = false;
-    if (commonState.isSuccess && commonState.data != null) {
-      bool? hasMore = commonState.data["hasMore"];
-      int returnPage = commonState.data["page"] ?? page;
-      List? friends = commonState.data["friends"];
-      return (hasMore: hasMore, page: returnPage + 1, friends: friends);
-    }
+    try {
+      // 第一页先读缓存，命中则直接返回（try-catch 兜底）
+      if (page == 1 && categoryName != null) {
+        try {
+          final cached = await IsarCacheService.instance.getJson(
+            CacheKeys.friendItems(categoryName),
+          );
+          print('[Cache] pullFriends 缓存命中: ${cached != null}, 分类: $categoryName, 好友数: ${(cached?['friends'] as List?)?.length ?? 0}');
+          if (cached != null) {
+            final friends = (cached['friends'] as List?) ?? [];
+            final hasMore = cached['hasMore'] as bool?;
+            final cachedPage = (cached['page'] as num?)?.toInt() ?? 1;
+            return (hasMore: hasMore, page: cachedPage + 1, friends: friends);
+          }
+        } catch (e) {
+          print('[Cache] pullFriends 缓存读取异常: $e');
+        }
+      }
 
-    return (hasMore: null, page: page, friends: null);
+      final CommonState commonState = await UserService.pullFriends(page, pageSize);
+      print('[Cache] pullFriends 网络结果: isSuccess=${commonState.isSuccess}, 分类: $categoryName, 好友数: ${(commonState.data?['friends'] as List?)?.length ?? 0}');
+      if (commonState.isSuccess && commonState.data != null) {
+        bool? hasMore = commonState.data["hasMore"] as bool?;
+        int returnPage = (commonState.data["page"] as num?)?.toInt() ?? page;
+        List? friends = commonState.data["friends"] as List?;
+
+        // 回写缓存（TTL 24小时，try-catch 兜底）
+        if (categoryName != null && friends != null) {
+          try {
+            if (page == 1) {
+              await IsarCacheService.instance.setJson(
+                CacheKeys.friendItems(categoryName),
+                {'friends': friends, 'hasMore': hasMore, 'page': returnPage},
+                ttlSeconds: 24 * 60 * 60,
+              );
+              print('[Cache] pullFriends 缓存写入成功, 分类: $categoryName, 好友数: ${friends.length}');
+            } else {
+              final cached = await IsarCacheService.instance.getJson(
+                CacheKeys.friendItems(categoryName),
+              );
+              final oldFriends = (cached?['friends'] as List?) ?? [];
+              final allFriends = [...oldFriends, ...friends];
+              await IsarCacheService.instance.setJson(
+                CacheKeys.friendItems(categoryName),
+                {'friends': allFriends, 'hasMore': hasMore, 'page': returnPage},
+                ttlSeconds: 24 * 60 * 60,
+              );
+              print('[Cache] pullFriends 缓存累积成功, 分类: $categoryName, 总好友数: ${allFriends.length}');
+            }
+          } catch (e) {
+            print('[Cache] pullFriends 缓存写入异常: $e');
+          }
+        }
+
+        return (hasMore: hasMore, page: returnPage + 1, friends: friends);
+      }
+
+      return (hasMore: null, page: page, friends: null);
+    } finally {
+      _isLoadingFriends = false;
+    }
   }
 
   // 退出登录执行

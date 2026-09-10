@@ -1,5 +1,6 @@
 import 'package:chatapp/constants/app_constants.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
 const Duration animDuration = Duration(milliseconds: 200);
 
@@ -36,23 +37,21 @@ class _GenderSelectorState extends State<GenderSelector>
 
   late final Map<int, AnimationController> _ctrlPool;
   late final Map<int, Animation<double>> _scalePool;
-  int? _curSelect;
+  final RxnInt _curSelect = RxnInt();
 
   void onTapItem(int index) {
-    if (_curSelect == index) return;
-    setState(() {
-      if (_curSelect != null) {
-        _ctrlPool[_curSelect]!.reverse();
-      }
-      _curSelect = index;
-      _ctrlPool[index]!.forward(from: 0);
-    });
+    if (_curSelect.value == index) return;
+    if (_curSelect.value != null) {
+      _ctrlPool[_curSelect.value]!.reverse();
+    }
+    _curSelect.value = index;
+    _ctrlPool[index]!.forward(from: 0);
   }
 
   @override
   void initState() {
     super.initState();
-    _curSelect = widget.initSelect;
+    _curSelect.value = widget.initSelect;
     _ctrlPool = {};
     _scalePool = {};
     for (int idx = 0; idx < widget.genderMap.length; idx++) {
@@ -63,8 +62,8 @@ class _GenderSelectorState extends State<GenderSelector>
         end: 1.05,
       ).animate(CurvedAnimation(parent: ctrl, curve: Curves.easeOut));
     }
-    if (_curSelect != null && _curSelect! < widget.genderMap.length) {
-      _ctrlPool[_curSelect]!.forward();
+    if (_curSelect.value != null && _curSelect.value! < widget.genderMap.length) {
+      _ctrlPool[_curSelect.value]!.forward();
     }
   }
 
@@ -159,8 +158,8 @@ class _GenderSelectorState extends State<GenderSelector>
                       Expanded(
                         child: GestureDetector(
                           onTap: () {
-                            if (_curSelect != null) {
-                              widget.onSelect(_curSelect!);
+                            if (_curSelect.value != null) {
+                              widget.onSelect(_curSelect.value!);
                             }
                             widget.onVisible(false);
                           },
@@ -207,50 +206,52 @@ class _GenderSelectorState extends State<GenderSelector>
   }
 
   Widget _buildGenderCard(int index) {
-    final isSelected = _curSelect == index;
-    return AnimatedBuilder(
-      animation: _scalePool[index]!,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: _scalePool[index]!.value,
-          child: GestureDetector(
-            onTap: () => onTapItem(index),
-            child: AnimatedContainer(
-              duration: animDuration,
-              height: 100,
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? widget.btnColor.withOpacity(0.1)
-                    : Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isSelected ? widget.btnColor : Colors.grey.shade200,
-                  width: isSelected ? 2 : 1,
+    return Obx(() {
+      final isSelected = _curSelect.value == index;
+      return AnimatedBuilder(
+        animation: _scalePool[index]!,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _scalePool[index]!.value,
+            child: GestureDetector(
+              onTap: () => onTapItem(index),
+              child: AnimatedContainer(
+                duration: animDuration,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? widget.btnColor.withOpacity(0.1)
+                      : Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isSelected ? widget.btnColor : Colors.grey.shade200,
+                    width: isSelected ? 2 : 1,
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _iconMap[index] ?? Icons.person,
+                      size: 32,
+                      color: isSelected ? widget.btnColor : Colors.grey.shade500,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "${widget.genderMap[index]}",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                        color: isSelected ? widget.btnColor : Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    _iconMap[index] ?? Icons.person,
-                    size: 32,
-                    color: isSelected ? widget.btnColor : Colors.grey.shade500,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "${widget.genderMap[index]}",
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                      color: isSelected ? widget.btnColor : Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
             ),
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
+    });
   }
 }
