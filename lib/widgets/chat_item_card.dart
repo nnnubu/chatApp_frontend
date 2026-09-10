@@ -82,11 +82,12 @@ class _ChatItemCardState extends State<ChatItemCard>
       final VideoMessageContent? video =
           VideoMessageContent.tryParse(item.content);
       if (video != null) {
-        // content 解析成功（已上传）：显示网络视频气泡
+        // content 解析成功（已上传）：显示网络视频气泡（有缩略图走图片，无则加载视频首帧）
         return VideoBubble(
           key: ValueKey('video_net_${video.url}'),
           url: video.url,
           isSelf: isSelf,
+          thumbUrl: video.thumbUrl,
         );
       }
       // content 未解析成功（上传中/上传失败）：

@@ -332,8 +332,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         _updateMessageStatus(requestId, AckStatus.roamed);
         return;
       }
+      final thumbUrl = resp['thumbUrl'] as String?;
       // 3. 组装视频消息 content JSON 并更新乐观消息
-      final contentJson = VideoMessageContent.build(url);
+      final contentJson = VideoMessageContent.build(url, thumbUrl: thumbUrl);
       _updateMessageContent(requestId, contentJson);
       // 4. 发送 WS
       WebSocketService.instance.sendDto(
